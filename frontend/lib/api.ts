@@ -185,6 +185,12 @@ class ApiClient {
       method: 'POST',
     });
   }
+
+  async deleteReport(reportId: string) {
+    return this.request<any>(`/api/reports/${reportId}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export const api = new ApiClient();

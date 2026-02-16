@@ -4,6 +4,7 @@
 
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from datetime import datetime
 import os
@@ -42,7 +43,7 @@ async def get_report_list(
                     "id": f,
                     "name": f,
                     "type": report_type_val,
-                    "path": file_path,
+                    "path": f"/api/reports/download/{f}",
                     "size": stat.st_size,
                     "created_at": datetime.fromtimestamp(stat.st_ctime).isoformat()
                 })
@@ -63,6 +64,29 @@ async def get_report_list(
             "page_size": page_size
         }
     }
+
+
+@router.get("/download/{report_id}")
+async def download_report(request: Request, report_id: str):
+    report_path = os.path.join("reports", report_id)
+    
+    if not os.path.exists(report_path):
+        raise HTTPException(status_code=404, detail="报告不存在")
+    
+    if report_id.endswith('.html'):
+        media_type = 'text/html'
+    elif report_id.endswith('.pdf'):
+        media_type = 'application/pdf'
+    elif report_id.endswith('.json'):
+        media_type = 'application/json'
+    else:
+        media_type = 'application/octet-stream'
+    
+    return FileResponse(
+        path=report_path,
+        media_type=media_type,
+        filename=report_id
+    )
 
 
 @router.get("/{report_id}")
