@@ -1,7 +1,7 @@
 # AI Quant Research Hub (AIQRH)
 
 AI 驱动股票量化研究平台
-
+![alt text](image.png)
 ## 功能特性
 
 - 股票数据抓取与存储

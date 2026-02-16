@@ -37,7 +37,10 @@ app = FastAPI(
     title="AI Quant Research Hub API",
     description="AI量化研究平台后端API服务",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
 app.add_middleware(
@@ -63,7 +66,38 @@ async def root():
     return {
         "name": "AI Quant Research Hub API",
         "version": "1.0.0",
-        "status": "running"
+        "status": "running",
+        "endpoints": {
+            "认证": {
+                "POST /api/auth/login": "用户登录",
+                "POST /api/auth/register": "用户注册",
+                "GET /api/auth/me": "获取当前用户",
+            },
+            "股票": {
+                "GET /api/stocks/list": "股票列表",
+                "GET /api/stocks/scores": "AI评分",
+                "GET /api/stocks/{code}": "股票详情",
+                "GET /api/stocks/{code}/price": "价格数据",
+                "GET /api/stocks/{code}/indicators": "技术指标",
+            },
+            "市场": {
+                "GET /api/market/summary": "市场概览",
+                "GET /api/market/indices": "指数行情",
+            },
+            "组合": {
+                "GET /api/portfolio/list": "组合列表",
+                "POST /api/portfolio": "创建组合",
+            },
+            "回测": {
+                "POST /api/backtest/run": "运行回测",
+                "GET /api/backtest/history": "回测历史",
+            },
+            "报告": {
+                "GET /api/reports/list": "报告列表",
+                "POST /api/reports/generate/daily": "生成日报",
+                "POST /api/reports/generate/weekly": "生成周报",
+            }
+        }
     }
 
 

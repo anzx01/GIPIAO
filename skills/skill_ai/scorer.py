@@ -22,7 +22,7 @@ class StockScorer:
             'liquidity': 0.10
         }
         
-        if 'factors' in self.config:
+        if 'factors' in self.config and isinstance(self.config['factors'], dict):
             self.factor_weights.update(self.config['factors'])
     
     def score_stocks(self, price_data: Dict[str, pd.DataFrame],
