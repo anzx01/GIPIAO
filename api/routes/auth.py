@@ -17,9 +17,10 @@ from api.auth import (
     User,
     UserCreate,
     get_password_hash,
-    fake_users_db,
     get_user
 )
+from core.database import get_db
+from core.models import User as UserModel
 
 
 router = APIRouter(prefix="/auth", tags=["认证"])
@@ -57,7 +58,10 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserCreate):
-    if user_data.username in fake_users_db:
+    db = get_db()
+    
+    existing_user = db.users.find_one({"username": user_data.username})
+    if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered"
@@ -65,13 +69,15 @@ async def register(user_data: UserCreate):
     
     hashed_password = get_password_hash(user_data.password)
     
-    fake_users_db[user_data.username] = {
-        "username": user_data.username,
-        "email": user_data.email,
-        "hashed_password": hashed_password,
-        "is_active": True,
-        "is_admin": False,
-    }
+    new_user = UserModel(
+        username=user_data.username,
+        email=user_data.email,
+        hashed_password=hashed_password,
+        is_active=True,
+        is_admin=False
+    )
+    
+    db.users.insert_one(new_user.model_dump())
     
     return UserResponse(
         username=user_data.username,

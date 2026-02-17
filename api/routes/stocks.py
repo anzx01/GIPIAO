@@ -10,6 +10,13 @@ from pydantic import BaseModel
 
 import pandas as pd
 
+from api.validators import (
+    validate_stock_code,
+    validate_date_format,
+    validate_pagination
+)
+from api.cache import cached, clear_cache
+
 
 router = APIRouter()
 
@@ -53,12 +60,15 @@ class StockDetail(BaseModel):
 
 
 @router.get("/list")
+@cached(ttl=300, key_prefix="stock_list:")
 async def get_stock_list(
     request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     keyword: Optional[str] = None
 ):
+    page, page_size = validate_pagination(page, page_size)
+    
     engine = request.app.state.engine
     stock_list = engine._get_stock_list()
     
@@ -70,6 +80,7 @@ async def get_stock_list(
         })
     
     if keyword:
+        keyword = keyword.strip()
         stocks = [s for s in stocks if keyword.lower() in s["code"].lower() or 
                   (s["name"] and keyword.lower() in s["name"].lower())]
     
@@ -90,6 +101,7 @@ async def get_stock_list(
 
 
 @router.get("/scores")
+@cached(ttl=600, key_prefix="stock_scores:")
 async def get_stock_scores(
     request: Request,
     top_n: Optional[int] = Query(10, ge=1, le=50)
@@ -119,6 +131,8 @@ async def get_stock_scores(
                 "total": len(scores)
             }
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -129,6 +143,8 @@ async def get_stock_detail(
     code: str,
     days: int = Query(60, ge=1, le=365)
 ):
+    code = validate_stock_code(code)
+    
     engine = request.app.state.engine
     
     try:
@@ -188,12 +204,19 @@ async def get_stock_price(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None
 ):
+    code = validate_stock_code(code)
+    
     engine = request.app.state.engine
     
     if not start_date:
         start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+    else:
+        start_date = validate_date_format(start_date)
+    
     if not end_date:
         end_date = datetime.now().strftime("%Y%m%d")
+    else:
+        end_date = validate_date_format(end_date)
     
     try:
         price_data = engine.fetcher.fetch_price_data([code], start_date, end_date)
@@ -222,6 +245,8 @@ async def get_technical_indicators(
     code: str,
     days: int = Query(60, ge=1, le=365)
 ):
+    code = validate_stock_code(code)
+    
     engine = request.app.state.engine
     
     try:

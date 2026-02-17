@@ -1,7 +1,10 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import MongoClient
 from typing import Optional
-import os
+from api.config import get_settings
+
+
+settings = get_settings()
 
 
 class Database:
@@ -13,15 +16,7 @@ db = Database()
 
 
 def get_database_url() -> str:
-    host = os.getenv("MONGO_HOST", "localhost")
-    port = os.getenv("MONGO_PORT", "27017")
-    user = os.getenv("MONGO_USER", "")
-    password = os.getenv("MONGO_PASSWORD", "")
-    db_name = os.getenv("MONGO_DB", "aiqrh")
-    
-    if user and password:
-        return f"mongodb://{user}:{password}@{host}:{port}/{db_name}"
-    return f"mongodb://{host}:{port}/{db_name}"
+    return settings.database.connection_string
 
 
 def init_mongodb():
@@ -32,7 +27,7 @@ def init_mongodb():
 def get_db():
     if db.client is None:
         init_mongodb()
-    return db.client[os.getenv("MONGO_DB", "aiqrh")]
+    return db.client[settings.database.db_name]
 
 
 async def init_async_mongodb():
@@ -43,7 +38,7 @@ async def init_async_mongodb():
 async def get_async_db():
     if db.async_client is None:
         await init_async_mongodb()
-    return db.async_client[os.getenv("MONGO_DB", "aiqrh")]
+    return db.async_client[settings.database.db_name]
 
 
 def close_mongodb():

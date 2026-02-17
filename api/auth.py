@@ -6,40 +6,18 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 import os
+from core.database import get_db
+from core.models import User, UserInDB, UserCreate, Token, TokenData
+from api.config import get_settings
 
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+settings = get_settings()
+SECRET_KEY = settings.jwt.secret_key
+ALGORITHM = settings.jwt.algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.jwt.access_token_expire_minutes
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-class TokenData(BaseModel):
-    username: Optional[str] = None
-
-
-class User(BaseModel):
-    username: str
-    email: Optional[str] = None
-    is_active: bool = True
-    is_admin: bool = False
-
-
-class UserInDB(User):
-    hashed_password: str
-
-
-class UserCreate(BaseModel):
-    username: str
-    email: Optional[str] = None
-    password: str
 
 
 def _hash_password(password: str) -> str:
@@ -55,17 +33,6 @@ def _verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
-fake_users_db = {
-    "admin": {
-        "username": "admin",
-        "email": "admin@example.com",
-        "hashed_password": _hash_password("admin123"),
-        "is_active": True,
-        "is_admin": True,
-    }
-}
-
-
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return _verify_password(plain_password, hashed_password)
 
@@ -75,8 +42,9 @@ def get_password_hash(password: str) -> str:
 
 
 def get_user(username: str) -> Optional[UserInDB]:
-    if username in fake_users_db:
-        user_dict = fake_users_db[username]
+    db = get_db()
+    user_dict = db.users.find_one({"username": username})
+    if user_dict:
         return UserInDB(**user_dict)
     return None
 
