@@ -75,7 +75,8 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def lifespan(app: FastAPI):
     global engine
     logger.info("正在启动AI Quant Engine...")
-    engine = QuantEngine("config.yaml")
+    config_path = str(Path(__file__).parent.parent / "config.yaml")
+    engine = QuantEngine(config_path)
     logger.info("引擎启动完成")
     app.state.engine = engine
     yield

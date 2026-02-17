@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Request, Query
 from pydantic import BaseModel
+from loguru import logger
 
 import pandas as pd
 
@@ -117,7 +118,7 @@ async def get_stock_scores(
         scores = result.get("data", {}).get("stock_scores", [])
         
         if not scores:
-            scores = _generate_mock_scores(engine._get_stock_list())
+            raise HTTPException(status_code=404, detail="暂无评分数据，请稍后再试")
         
         for score in scores:
             score["name"] = _get_stock_name(score["code"])
@@ -159,9 +160,17 @@ async def get_stock_detail(
         df = price_data[code]
         df = engine.fetcher.calculate_technical_indicators(df)
         
-        financial_data = engine.fetcher.fetch_financial_data([code])
+        financial_data = {}
+        try:
+            financial_data = engine.fetcher.fetch_financial_data([code])
+        except Exception as e:
+            logger.error(f"Error fetching financial data: {e}")
         
-        news_data = engine.news_fetcher.fetch_news([code])
+        news_data = {}
+        try:
+            news_data = engine.news_fetcher.fetch_news([code])
+        except Exception as e:
+            logger.error(f"Error fetching news data: {e}")
         
         latest = df.iloc[-1] if not df.empty else None
         
@@ -169,30 +178,53 @@ async def get_stock_detail(
         if latest is not None:
             for indicator in ["ma5", "ma10", "ma20", "ema12", "ema26", "macd", "signal", "rsi", "bb_upper", "bb_lower"]:
                 if indicator in df.columns:
-                    technical[indicator] = round(float(latest.get(indicator, 0)), 2) if pd.notna(latest.get(indicator)) else None
+                    val = latest[indicator] if indicator in latest.index else None
+                    try:
+                        technical[indicator] = round(float(val), 2) if pd.notna(val) else None
+                    except (TypeError, ValueError):
+                        technical[indicator] = None
+        
+        price_data_records = []
+        try:
+            df_copy = df.copy()
+            df_copy['date'] = df_copy['date'].dt.strftime('%Y-%m-%d')
+            df_copy = df_copy.replace({float('nan'): None})
+            price_data_records = df_copy.tail(30).to_dict("records")
+        except Exception as e:
+            logger.error(f"Error converting price data to dict: {e}")
+            price_data_records = []
+        
+        latest_price = {}
+        if latest is not None:
+            try:
+                latest_price = {
+                    "close": float(latest["close"]) if "close" in latest.index and pd.notna(latest["close"]) else None,
+                    "open": float(latest["open"]) if "open" in latest.index and pd.notna(latest["open"]) else None,
+                    "high": float(latest["high"]) if "high" in latest.index and pd.notna(latest["high"]) else None,
+                    "low": float(latest["low"]) if "low" in latest.index and pd.notna(latest["low"]) else None,
+                    "volume": float(latest["volume"]) if "volume" in latest.index and pd.notna(latest["volume"]) else None,
+                    "pct_change": float(latest["pct_change"]) if "pct_change" in latest.index and pd.notna(latest["pct_change"]) else None,
+                }
+            except (TypeError, ValueError) as e:
+                logger.error(f"Error converting latest price: {e}")
+                latest_price = {}
         
         return {
             "code": 200,
             "data": {
                 "code": code,
                 "name": _get_stock_name(code),
-                "price_data": df.tail(30).to_dict("records"),
+                "price_data": price_data_records,
                 "technical_indicators": technical,
                 "financial_data": financial_data.get(code, {}),
                 "news": news_data.get(code, []),
-                "latest_price": {
-                    "close": float(latest["close"]) if latest is not None else None,
-                    "open": float(latest["open"]) if latest is not None else None,
-                    "high": float(latest["high"]) if latest is not None else None,
-                    "low": float(latest["low"]) if latest is not None else None,
-                    "volume": float(latest["volume"]) if latest is not None else None,
-                    "pct_change": float(latest["pct_change"]) if latest is not None and "pct_change" in latest else None,
-                }
+                "latest_price": latest_price
             }
         }
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error in get_stock_detail for {code}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

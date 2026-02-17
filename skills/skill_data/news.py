@@ -13,7 +13,7 @@ class NewsFetcher:
         self.logger = loguru.logger
     
     def fetch_news(self, stock_codes: List[str], 
-                   days: int = 7) -> Dict[str, List[dict]]:
+                   days: int =7) -> Dict[str, List[dict]]:
         """获取股票相关新闻"""
         result = {}
         
@@ -23,7 +23,7 @@ class NewsFetcher:
                 result[code] = news
             except Exception as e:
                 self.logger.error(f"获取 {code} 新闻失败: {e}")
-                result[code] = self._generate_mock_news(code, days)
+                result[code] = []
         
         return result
     
@@ -51,11 +51,11 @@ class NewsFetcher:
                     })
                 return news_list
             
-            return self._generate_mock_news(code, days)
+            return []
             
         except Exception as e:
             self.logger.warning(f"fetch_news {code}: {e}")
-            return self._generate_mock_news(code, days)
+            return []
     
     def _generate_mock_news(self, code: str, days: int) -> List[dict]:
         """生成模拟新闻数据"""
@@ -141,11 +141,11 @@ class NewsFetcher:
                         'source': row.get('文章来源', '')
                     })
             
-            return news_list if news_list else self._generate_mock_market_news()
+            return news_list
             
         except Exception as e:
             self.logger.warning(f"获取市场新闻失败: {e}")
-            return self._generate_mock_market_news()
+            return []
     
     def _generate_mock_market_news(self) -> List[dict]:
         """生成模拟市场新闻"""

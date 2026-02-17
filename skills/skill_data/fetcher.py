@@ -76,7 +76,7 @@ class StockDataFetcher:
             
         except Exception as e:
             self.logger.error(f"fetch_single_stock {code} error: {e}")
-            return self._generate_mock_data(code, start_date, end_date)
+            return None
     
     def _generate_mock_data(self, code: str, start_date: str, end_date: str) -> pd.DataFrame:
         """生成模拟数据用于测试"""
@@ -117,7 +117,15 @@ class StockDataFetcher:
                 result[code] = data
             except Exception as e:
                 self.logger.error(f"获取 {code} 财务数据失败: {e}")
-                result[code] = self._generate_mock_financial(code)
+                result[code] = {
+                    'code': code,
+                    'revenue': None,
+                    'profit': None,
+                    'roe': None,
+                    'pe': None,
+                    'pb': None,
+                    'source': 'error'
+                }
         
         return result
     
@@ -138,8 +146,17 @@ class StockDataFetcher:
                 'pb': None,
                 'source': 'akshare'
             }
-        except:
-            return self._generate_mock_financial(code)
+        except Exception as e:
+            self.logger.error(f"获取 {code} 财务数据失败: {e}")
+            return {
+                'code': code,
+                'revenue': None,
+                'profit': None,
+                'roe': None,
+                'pe': None,
+                'pb': None,
+                'source': 'error'
+            }
     
     def _generate_mock_financial(self, code: str) -> dict:
         """生成模拟财务数据"""

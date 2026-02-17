@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,7 +110,10 @@ interface TechnicalIndicator {
 }
 
 export default function StocksPage() {
-  const [searchCode, setSearchCode] = useState("600519.SH");
+  const searchParams = useSearchParams();
+  const urlCode = searchParams.get('code');
+  
+  const [searchCode, setSearchCode] = useState(urlCode || "600519.SH");
   const [stockDetail, setStockDetail] = useState<StockDetail>({
     code: "600519",
     name: "贵州茅台",
@@ -128,10 +132,13 @@ export default function StocksPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (searchCode) {
+    if (urlCode) {
+      setSearchCode(urlCode);
+      fetchStockData(urlCode);
+    } else if (searchCode) {
       fetchStockData(searchCode);
     }
-  }, []);
+  }, [urlCode]);
 
   const fetchStockData = async (code: string) => {
     setLoading(true);
@@ -231,11 +238,11 @@ export default function StocksPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center border border-white/10">
-                <span className="text-2xl font-display font-bold gradient-text">600519</span>
+                <span className="text-2xl font-display font-bold gradient-text">{stockDetail.code}</span>
               </div>
               <div>
                 <h2 className="text-2xl font-display font-bold">{stockDetail.name}</h2>
-                <p className="text-muted-foreground">贵州茅台股份有限公司</p>
+                <p className="text-muted-foreground">{stockDetail.name}股份有限公司</p>
               </div>
             </div>
             <div className="text-right">
