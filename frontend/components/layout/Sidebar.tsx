@@ -12,6 +12,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  BarChart3,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/portfolio", label: "组合管理", icon: Briefcase },
   { href: "/backtest", label: "回测分析", icon: FlaskConical },
   { href: "/reports", label: "报告中心", icon: FileText },
+  { href: "/charts", label: "图表可视化", icon: BarChart3 },
 ];
 
 export function Sidebar() {
