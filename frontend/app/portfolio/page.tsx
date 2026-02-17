@@ -1,8 +1,10 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import api from "@/lib/api";
 import {
   Briefcase,
   TrendingUp,
@@ -14,6 +16,10 @@ import {
   ArrowDownRight,
   DollarSign,
   Percent,
+  Edit,
+  Trash2,
+  Save,
+  X,
 } from "lucide-react";
 import {
   AreaChart,
@@ -29,52 +35,219 @@ import {
   Legend,
 } from "recharts";
 
-const portfolio = {
-  totalValue: 1250000,
-  totalReturn: 12.8,
-  dailyReturn: 1.25,
-  positions: 8,
-};
+interface Portfolio {
+  id: string;
+  name: string;
+  stocks: Record<string, number>;
+  created_at?: string;
+  updated_at?: string;
+}
 
-const performanceData = [
-  { month: "8月", value: 1000000, benchmark: 1000000 },
-  { month: "9月", value: 1050000, benchmark: 1020000 },
-  { month: "10月", value: 1030000, benchmark: 1010000 },
-  { month: "11月", value: 1100000, benchmark: 1040000 },
-  { month: "12月", value: 1150000, benchmark: 1060000 },
-  { month: "1月", value: 1200000, benchmark: 1080000 },
-  { month: "2月", value: 1250000, benchmark: 1100000 },
-];
-
-const holdings = [
-  { code: "600519", name: "贵州茅台", weight: 25, return: 15.2, value: 312500, shares: 185 },
-  { code: "000858", name: "五粮液", weight: 18, return: 12.8, value: 225000, shares: 1200 },
-  { code: "601318", name: "中国平安", weight: 15, return: -2.5, value: 187500, shares: 2500 },
-  { code: "600036", name: "招商银行", weight: 12, return: 8.3, value: 150000, shares: 4500 },
-  { code: "600900", name: "长江电力", weight: 10, return: 5.2, value: 125000, shares: 5500 },
-  { code: "300750", name: "宁德时代", weight: 8, return: 22.5, value: 100000, shares: 280 },
-  { code: "002594", name: "比亚迪", weight: 7, return: 18.7, value: 87500, shares: 350 },
-  { code: "现金", name: "现金", weight: 5, return: 0, value: 62500, shares: 0 },
-];
-
-const sectorAllocation = [
-  { name: "白酒", value: 43, color: "hsl(199, 89%, 48%)" },
-  { name: "金融", value: 27, color: "hsl(280, 65%, 60%)" },
-  { name: "新能源", value: 15, color: "hsl(160, 84%, 39%)" },
-  { name: "电力", value: 10, color: "hsl(38, 92%, 50%)" },
-  { name: "现金", value: 5, color: "hsl(215, 20%, 65%)" },
-];
-
-const riskMetrics = [
-  { name: "年化收益率", value: "18.5%", icon: TrendingUp, color: "text-success" },
-  { name: "夏普比率", value: "1.85", icon: BarChart3, color: "text-primary" },
-  { name: "最大回撤", value: "-8.2%", icon: TrendingDown, color: "text-danger" },
-  { name: "波动率", value: "15.3%", icon: PieChart, color: "text-warning" },
-  { name: "Alpha", value: "5.2%", icon: DollarSign, color: "text-chart-2" },
-  { name: "Beta", value: "0.85", icon: Percent, color: "text-chart-3" },
-];
+interface Position {
+  code: string;
+  name: string;
+  weight: number;
+  return: number;
+  value: number;
+  shares: number;
+}
 
 export default function PortfolioPage() {
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+  const [selectedPortfolio, setSelectedPortfolio] = useState<Portfolio | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [editName, setEditName] = useState("");
+  const [editStocks, setEditStocks] = useState<Record<string, number>>({});
+  const [newStockCode, setNewStockCode] = useState("");
+  const [newStockWeight, setNewStockWeight] = useState(10);
+
+  useEffect(() => {
+    fetchPortfolios();
+  }, []);
+
+  const fetchPortfolios = async () => {
+    try {
+      const res = await api.getPortfolioList();
+      if (res?.data?.items) {
+        setPortfolios(res.data.items);
+        if (res.data.items.length > 0 && !selectedPortfolio) {
+          setSelectedPortfolio(res.data.items[0]);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch portfolios:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreate = () => {
+    setIsCreating(true);
+    setEditName("新组合");
+    setEditStocks({});
+  };
+
+  const handleEdit = () => {
+    if (!selectedPortfolio) return;
+    setIsEditing(true);
+    setEditName(selectedPortfolio.name);
+    setEditStocks({ ...selectedPortfolio.stocks });
+  };
+
+  const handleSave = async () => {
+    if (!editName.trim()) {
+      alert("请输入组合名称");
+      return;
+    }
+
+    const totalWeight = Object.values(editStocks).reduce((sum, w) => sum + w, 0);
+    if (Math.abs(totalWeight - 100) > 0.1) {
+      alert(`权重总和应为100%，当前为${totalWeight.toFixed(1)}%`);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (isCreating) {
+        const res = await api.createPortfolio(editName, editStocks);
+        if (res?.data) {
+          await fetchPortfolios();
+          setIsCreating(false);
+          setIsEditing(false);
+        }
+      } else if (isEditing && selectedPortfolio) {
+        const res = await api.updatePortfolio(selectedPortfolio.id, editStocks);
+        if (res?.data) {
+          await fetchPortfolios();
+          setIsEditing(false);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to save portfolio:', error);
+      alert("保存失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setIsCreating(false);
+    setIsEditing(false);
+    setEditName("");
+    setEditStocks({});
+  };
+
+  const handleDelete = async (portfolioId: string) => {
+    if (!confirm("确定要删除这个组合吗？")) return;
+
+    try {
+      await fetch(`${api['baseUrl']}/api/portfolio/${portfolioId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      await fetchPortfolios();
+      if (selectedPortfolio?.id === portfolioId) {
+        setSelectedPortfolio(null);
+      }
+    } catch (error) {
+      console.error('Failed to delete portfolio:', error);
+      alert("删除失败");
+    }
+  };
+
+  const handleAddStock = () => {
+    if (!newStockCode.trim()) return;
+    if (editStocks[newStockCode]) {
+      alert("该股票已存在");
+      return;
+    }
+
+    const currentTotal = Object.values(editStocks).reduce((sum, w) => sum + w, 0);
+    const remaining = 100 - currentTotal;
+    const weight = Math.min(newStockWeight, remaining);
+
+    if (weight <= 0) {
+      alert("权重已满，无法添加");
+      return;
+    }
+
+    setEditStocks({ ...editStocks, [newStockCode]: weight });
+    setNewStockCode("");
+    setNewStockWeight(10);
+  };
+
+  const handleRemoveStock = (code: string) => {
+    const newStocks = { ...editStocks };
+    delete newStocks[code];
+    setEditStocks(newStocks);
+  };
+
+  const handleUpdateWeight = (code: string, weight: number) => {
+    setEditStocks({ ...editStocks, [code]: Math.max(0, Math.min(100, weight)) });
+  };
+
+  const getStockName = (code: string) => {
+    const names: Record<string, string> = {
+      "600519.SH": "贵州茅台",
+      "000858.SH": "五粮液",
+      "601318.SH": "中国平安",
+      "600036.SH": "招商银行",
+      "600900.SH": "长江电力",
+      "300750.SZ": "宁德时代",
+      "002594.SZ": "比亚迪",
+    };
+    return names[code] || code;
+  };
+
+  const portfolio = selectedPortfolio;
+  const totalValue = 1250000;
+  const totalReturn = 12.8;
+  const dailyReturn = 1.25;
+  const positionsCount = Object.keys(portfolio?.stocks || {}).length;
+
+  const performanceData = [
+    { month: "8月", value: 1000000, benchmark: 1000000 },
+    { month: "9月", value: 1050000, benchmark: 1020000 },
+    { month: "10月", value: 1030000, benchmark: 1010000 },
+    { month: "11月", value: 1100000, benchmark: 1040000 },
+    { month: "12月", value: 1150000, benchmark: 1060000 },
+    { month: "1月", value: 1200000, benchmark: 1080000 },
+    { month: "2月", value: 1250000, benchmark: 1100000 },
+  ];
+
+  const holdings: Position[] = portfolio
+    ? Object.entries(portfolio.stocks).map(([code, weight]) => ({
+        code: code.replace('.SH', '').replace('.SZ', ''),
+        name: getStockName(code),
+        weight,
+        return: Math.round((Math.random() - 0.3) * 30 * 100) / 100,
+        value: (totalValue * weight) / 100,
+        shares: Math.round((totalValue * weight) / 100 / 100),
+      }))
+    : [];
+
+  const sectorAllocation = [
+    { name: "白酒", value: 43, color: "hsl(199, 89%, 48%)" },
+    { name: "金融", value: 27, color: "hsl(280, 65%, 60%)" },
+    { name: "新能源", value: 15, color: "hsl(160, 84%, 39%)" },
+    { name: "电力", value: 10, color: "hsl(38, 92%, 50%)" },
+    { name: "现金", value: 5, color: "hsl(215, 20%, 65%)" },
+  ];
+
+  const riskMetrics = [
+    { name: "年化收益率", value: "18.5%", icon: TrendingUp, color: "text-success" },
+    { name: "夏普比率", value: "1.85", icon: BarChart3, color: "text-primary" },
+    { name: "最大回撤", value: "-8.2%", icon: TrendingDown, color: "text-danger" },
+    { name: "波动率", value: "15.3%", icon: PieChart, color: "text-warning" },
+    { name: "Alpha", value: "5.2%", icon: DollarSign, color: "text-chart-2" },
+    { name: "Beta", value: "0.85", icon: Percent, color: "text-chart-3" },
+  ];
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -83,16 +256,147 @@ export default function PortfolioPage() {
           <p className="text-muted-foreground mt-1">投资组合监控与绩效分析</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline">
-            <Plus className="h-4 w-4 mr-2" />
-            调仓
-          </Button>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            新建组合
-          </Button>
+          {isEditing || isCreating ? (
+            <>
+              <Button variant="outline" onClick={handleCancel} disabled={saving}>
+                <X className="h-4 w-4 mr-2" />
+                取消
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>
+                <Save className={`h-4 w-4 mr-2 ${saving ? 'animate-spin' : ''}`} />
+                {saving ? '保存中...' : '保存'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={handleEdit} disabled={!portfolio}>
+                <Edit className="h-4 w-4 mr-2" />
+                调仓
+              </Button>
+              <Button onClick={handleCreate}>
+                <Plus className="h-4 w-4 mr-2" />
+                新建组合
+              </Button>
+            </>
+          )}
         </div>
       </div>
+
+      {portfolios.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">选择组合:</span>
+              <select
+                className="flex-1 h-10 px-3 rounded-md border border-white/10 bg-white/5 text-foreground"
+                value={selectedPortfolio?.id || ""}
+                onChange={(e) => {
+                  const p = portfolios.find(p => p.id === e.target.value);
+                  setSelectedPortfolio(p || null);
+                }}
+              >
+                {portfolios.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              {portfolio && (
+                <Button variant="ghost" size="sm" onClick={() => handleDelete(portfolio.id)}>
+                  <Trash2 className="h-4 w-4 text-danger" />
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isEditing || isCreating ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">
+              {isCreating ? '创建新组合' : '编辑组合'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">组合名称</label>
+              <Input
+                type="text"
+                placeholder="输入组合名称"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">持仓配置</label>
+              <div className="space-y-3">
+                {Object.entries(editStocks).map(([code, weight]) => (
+                  <div key={code} className="flex items-center gap-3">
+                    <Input
+                      type="text"
+                      value={code}
+                      className="flex-1"
+                      disabled
+                    />
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={weight}
+                      onChange={(e) => handleUpdateWeight(code, parseFloat(e.target.value) || 0)}
+                      className="w-24"
+                    />
+                    <span className="text-sm text-muted-foreground">%</span>
+                    <Button variant="ghost" size="sm" onClick={() => handleRemoveStock(code)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+
+                <div className="flex items-center gap-3 pt-2 border-t border-white/5">
+                  <Input
+                    type="text"
+                    placeholder="股票代码 (如: 600519.SH)"
+                    value={newStockCode}
+                    onChange={(e) => setNewStockCode(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    type="number"
+                    min="1"
+                    max="100"
+                    step="1"
+                    value={newStockWeight}
+                    onChange={(e) => setNewStockWeight(parseFloat(e.target.value) || 10)}
+                    className="w-24"
+                  />
+                  <span className="text-sm text-muted-foreground">%</span>
+                  <Button variant="outline" size="sm" onClick={handleAddStock}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    添加
+                  </Button>
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <span className="text-sm text-muted-foreground">
+                    当前权重: {Object.values(editStocks).reduce((sum, w) => sum + w, 0).toFixed(1)}%
+                  </span>
+                  <span className={`text-sm font-medium ${
+                    Math.abs(Object.values(editStocks).reduce((sum, w) => sum + w, 0) - 100) < 0.1
+                      ? 'text-success'
+                      : 'text-warning'
+                  }`}>
+                    {Math.abs(Object.values(editStocks).reduce((sum, w) => sum + w, 0) - 100) < 0.1
+                      ? '权重正常'
+                      : '权重应为100%'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : portfolio ? (
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="glow-effect">
@@ -101,7 +405,7 @@ export default function PortfolioPage() {
               <div>
                 <p className="text-sm text-muted-foreground">总资产</p>
                 <p className="text-2xl font-display font-bold mt-1">
-                  ¥{(portfolio.totalValue / 10000).toFixed(1)}万
+                  ¥{(totalValue / 10000).toFixed(1)}万
                 </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -117,7 +421,7 @@ export default function PortfolioPage() {
               <div>
                 <p className="text-sm text-muted-foreground">总收益率</p>
                 <p className="text-2xl font-display font-bold mt-1 text-success">
-                  +{portfolio.totalReturn}%
+                  +{totalReturn}%
                 </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center">
@@ -133,7 +437,7 @@ export default function PortfolioPage() {
               <div>
                 <p className="text-sm text-muted-foreground">日收益率</p>
                 <p className="text-2xl font-display font-bold mt-1 text-success">
-                  +{portfolio.dailyReturn}%
+                  +{dailyReturn}%
                 </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-chart-2/10 flex items-center justify-center">
@@ -148,7 +452,7 @@ export default function PortfolioPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">持仓数量</p>
-                <p className="text-2xl font-display font-bold mt-1">{portfolio.positions}</p>
+                <p className="text-2xl font-display font-bold mt-1">{positionsCount}</p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-chart-4/10 flex items-center justify-center">
                 <PieChart className="h-6 w-6 text-chart-4" />

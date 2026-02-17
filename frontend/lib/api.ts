@@ -191,6 +191,13 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  async generateBacktestReport(backtestData: any) {
+    return this.request<any>('/api/reports/generate/backtest', {
+      method: 'POST',
+      body: JSON.stringify(backtestData),
+    });
+  }
 }
 
 export const api = new ApiClient();
