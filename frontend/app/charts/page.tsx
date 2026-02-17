@@ -17,7 +17,6 @@ import {
   TrendingDown,
   BarChart3,
   PieChart as PieChartIcon,
-  Scatter,
   Activity,
 } from "lucide-react";
 
@@ -126,7 +125,7 @@ export default function ChartsPage() {
     { id: "line", label: "折线图", icon: Activity },
     { id: "bar", label: "柱状图", icon: BarChart3 },
     { id: "pie", label: "饼图", icon: PieChartIcon },
-    { id: "scatter", label: "散点图", icon: Scatter },
+    { id: "scatter", label: "散点图", icon: BarChart3 },
     { id: "candlestick", label: "K线图", icon: TrendingUp },
     { id: "radar", label: "雷达图", icon: Activity },
     { id: "heatmap", label: "热力图", icon: BarChart3 },

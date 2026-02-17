@@ -142,6 +142,12 @@ class ApiClient {
     });
   }
 
+  async deletePortfolio(portfolioId: string) {
+    return this.request<any>(`/api/portfolio/${portfolioId}`, {
+      method: 'DELETE',
+    });
+  }
+
   async runBacktest(
     portfolio: Record<string, number>,
     startDate?: string,

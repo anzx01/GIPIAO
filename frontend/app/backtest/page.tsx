@@ -31,6 +31,7 @@ import {
   Line,
   BarChart,
   Bar,
+  Cell,
 } from "recharts";
 
 interface BacktestConfig {
@@ -327,7 +328,7 @@ export default function BacktestPage() {
               <div>
                 <p className="text-sm text-muted-foreground">总收益率</p>
                 <p className="text-2xl font-display font-bold mt-1 text-success">
-                  +{backtestResult.totalReturn}%
+                  +{backtestResult?.totalReturn ?? 0}%
                 </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center">
@@ -343,7 +344,7 @@ export default function BacktestPage() {
               <div>
                 <p className="text-sm text-muted-foreground">年化收益率</p>
                 <p className="text-2xl font-display font-bold mt-1 text-success">
-                  +{backtestResult.annualReturn}%
+                  +{backtestResult?.annualReturn ?? 0}%
                 </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -358,7 +359,7 @@ export default function BacktestPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">夏普比率</p>
-                <p className="text-2xl font-display font-bold mt-1">{backtestResult.sharpeRatio}</p>
+                <p className="text-2xl font-display font-bold mt-1">{backtestResult?.sharpeRatio ?? 0}</p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-chart-2/10 flex items-center justify-center">
                 <FlaskConical className="h-6 w-6 text-chart-2" />
@@ -373,7 +374,7 @@ export default function BacktestPage() {
               <div>
                 <p className="text-sm text-muted-foreground">最大回撤</p>
                 <p className="text-2xl font-display font-bold mt-1 text-danger">
-                  {backtestResult.maxDrawdown}%
+                  {backtestResult?.maxDrawdown ?? 0}%
                 </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-danger/10 flex items-center justify-center">
@@ -576,7 +577,7 @@ export default function BacktestPage() {
                   />
                   <Bar dataKey="return" radius={[4, 4, 0, 0]}>
                     {monthlyReturns.map((entry, index) => (
-                      <cell key={`cell-${index}`} fill={entry.return >= 0 ? 'hsl(160, 84%, 39%)' : 'hsl(0, 84%, 60%)'} />
+                      <Cell key={`cell-${index}`} fill={entry.return >= 0 ? 'hsl(160, 84%, 39%)' : 'hsl(0, 84%, 60%)'} />
                     ))}
                   </Bar>
                 </BarChart>

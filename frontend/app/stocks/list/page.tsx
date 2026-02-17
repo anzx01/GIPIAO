@@ -45,7 +45,7 @@ export default function StockListPage() {
 
   const fetchStocks = async () => {
     try {
-      const res = await api.getStockList(1, 100);
+      const res = await api.getStockList({ page: 1, page_size: 100 });
       if (res?.data?.items) {
         setStocks(res.data.items);
       }
@@ -63,7 +63,7 @@ export default function StockListPage() {
         const scoreMap = new Map(res.data.items.map((s: any) => [s.code, s]));
         setStocks(prev => prev.map(stock => ({
           ...stock,
-          ...scoreMap.get(stock.code)
+          ...(scoreMap.get(stock.code) || {})
         })));
       }
     } catch (error) {

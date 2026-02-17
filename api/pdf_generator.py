@@ -1,553 +1,267 @@
 """
-PDF报告生成模块
+PDF 报告生成器
+使用 ReportLab 生成 PDF 报告
 """
 
-from typing import Dict, List, Any
+from typing import Dict, List, Optional
 from datetime import datetime
-from jinja2 import Template
-from weasyprint import HTML, CSS
-import os
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+import io
 
 
 class PDFGenerator:
-    def __init__(self, template_dir: str = "templates"):
-        self.template_dir = template_dir
-        self.ensure_template_dir()
+    """PDF 报告生成器"""
     
-    def ensure_template_dir(self):
-        if not os.path.exists(self.template_dir):
-            os.makedirs(self.template_dir)
+    def __init__(self):
+        self.styles = getSampleStyleSheet()
+        self._setup_styles()
     
-    def generate_daily_report(self, data: Dict[str, Any]) -> str:
-        template_content = self._get_daily_report_template()
-        template = Template(template_content)
+    def _setup_styles(self):
+        """设置自定义样式"""
+        self.styles.add(ParagraphStyle(
+            name='CustomTitle',
+            parent=self.styles['Heading1'],
+            fontSize=24,
+            textColor=colors.HexColor('#2E7D32'),
+            spaceAfter=30,
+            alignment=TA_CENTER,
+            fontName='Helvetica-Bold'
+        ))
         
-        html_content = template.render(
-            title=f"AI量化分析日报 - {data.get('date', datetime.now().strftime('%Y-%m-%d'))}",
-            date=data.get('date', datetime.now().strftime('%Y-%m-%d')),
-            summary=data.get('summary', ''),
-            highlights=data.get('highlights', []),
-            market_data=data.get('market_data', {}),
-            top_stocks=data.get('top_stocks', []),
-            sectors=data.get('sectors', []),
-            generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.styles.add(ParagraphStyle(
+            name='CustomHeading',
+            parent=self.styles['Heading2'],
+            fontSize=16,
+            textColor=colors.HexColor('#1B5E20'),
+            spaceAfter=12,
+            spaceBefore=20,
+            fontName='Helvetica-Bold'
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='CustomSubHeading',
+            parent=self.styles['Heading3'],
+            fontSize=14,
+            textColor=colors.HexColor('#388E3C'),
+            spaceAfter=8,
+            spaceBefore=15,
+            fontName='Helvetica-Bold'
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='CustomBody',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            leading=14,
+            spaceAfter=6,
+            fontName='Helvetica'
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='CustomRight',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            leading=14,
+            alignment=TA_RIGHT,
+            fontName='Helvetica'
+        ))
+    
+    def generate_daily_report(
+        self,
+        market_summary: Dict,
+        top_stocks: List[Dict],
+        market_sentiment: Dict,
+        output_path: Optional[str] = None
+    ) -> bytes:
+        """生成每日市场报告"""
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=72,
+            leftMargin=72,
+            topMargin=72,
+            bottomMargin=72
         )
         
-        css_content = self._get_report_css()
+        story = []
         
-        output_path = f"reports/daily_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        os.makedirs("reports", exist_ok=True)
+        story.append(Paragraph("AI 量化研究平台 - 每日市场报告", self.styles['CustomTitle']))
+        story.append(Spacer(1, 12))
         
-        HTML(string=html_content).write_pdf(
-            output_path,
-            stylesheets=[CSS(string=css_content)]
+        story.append(Paragraph(f"报告日期: {datetime.now().strftime('%Y年%m月%d日')}", self.styles['CustomRight']))
+        story.append(Spacer(1, 24))
+        
+        self._add_market_summary(story, market_summary)
+        self._add_top_stocks(story, top_stocks)
+        self._add_market_sentiment(story, market_sentiment)
+        
+        doc.build(story)
+        
+        pdf_data = buffer.getvalue()
+        buffer.close()
+        
+        if output_path:
+            with open(output_path, 'wb') as f:
+                f.write(pdf_data)
+        
+        return pdf_data
+    
+    def _add_market_summary(self, story: List, data: Dict):
+        """添加市场概览"""
+        story.append(Paragraph("市场概览", self.styles['CustomHeading']))
+        
+        summary_data = [
+            ['指标', '数值'],
+            ['上证指数', f"{data.get('sh_index', 0):.2f}"],
+            ['深证成指', f"{data.get('sz_index', 0):.2f}"],
+            ['创业板指', f"{data.get('cyb_index', 0):.2f}"],
+            ['成交额', f"{data.get('volume', 0):.0f}亿"],
+            ['涨跌家数', f"{data.get('up_count', 0)}涨 / {data.get('down_count', 0)}跌"]
+        ]
+        
+        table = Table(summary_data, colWidths=[2*inch, 3*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (1, 0), colors.HexColor('#4CAF50')),
+            ('TEXTCOLOR', (0, 0), (1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        
+        story.append(table)
+        story.append(Spacer(1, 24))
+    
+    def _add_top_stocks(self, story: List, stocks: List[Dict]):
+        """添加热门股票"""
+        story.append(Paragraph("热门股票推荐", self.styles['CustomHeading']))
+        
+        if not stocks:
+            story.append(Paragraph("暂无推荐股票", self.styles['CustomBody']))
+            story.append(Spacer(1, 24))
+            return
+        
+        table_data = [['排名', '股票代码', '股票名称', 'AI评分', '推荐理由']]
+        
+        for i, stock in enumerate(stocks[:10], 1):
+            table_data.append([
+                str(i),
+                stock.get('code', ''),
+                stock.get('name', ''),
+                f"{stock.get('total_score', 0):.1f}",
+                stock.get('reason', '')[:30] + '...' if len(stock.get('reason', '')) > 30 else stock.get('reason', '')
+            ])
+        
+        table = Table(table_data, colWidths=[0.5*inch, 1.2*inch, 1.5*inch, 0.8*inch, 2*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4CAF50')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 9)
+        ]))
+        
+        story.append(table)
+        story.append(Spacer(1, 24))
+    
+    def _add_market_sentiment(self, story: List, sentiment: Dict):
+        """添加市场情绪"""
+        story.append(Paragraph("市场情绪分析", self.styles['CustomHeading']))
+        
+        sentiment_text = sentiment.get('text', '市场情绪平稳')
+        score = sentiment.get('score', 5)
+        
+        story.append(Paragraph(f"情绪指数: {score}/10", self.styles['CustomSubHeading']))
+        story.append(Paragraph(sentiment_text, self.styles['CustomBody']))
+        story.append(Spacer(1, 24))
+    
+    def generate_backtest_report(
+        self,
+        backtest_result: Dict,
+        output_path: Optional[str] = None
+    ) -> bytes:
+        """生成回测报告"""
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=72,
+            leftMargin=72,
+            topMargin=72,
+            bottomMargin=72
         )
         
-        return output_path
-    
-    def generate_weekly_report(self, data: Dict[str, Any]) -> str:
-        template_content = self._get_weekly_report_template()
-        template = Template(template_content)
+        story = []
         
-        html_content = template.render(
-            title=f"AI量化分析周报 - {data.get('week', '')}",
-            week=data.get('week', ''),
-            summary=data.get('summary', ''),
-            highlights=data.get('highlights', []),
-            market_summary=data.get('market_summary', {}),
-            top_stocks=data.get('top_stocks', []),
-            sector_performance=data.get('sector_performance', []),
-            risk_analysis=data.get('risk_analysis', {}),
-            generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        )
+        story.append(Paragraph("AI 量化研究平台 - 回测报告", self.styles['CustomTitle']))
+        story.append(Spacer(1, 12))
         
-        css_content = self._get_report_css()
+        story.append(Paragraph(f"生成时间: {datetime.now().strftime('%Y年%m月%d日 %H:%M')}", self.styles['CustomRight']))
+        story.append(Spacer(1, 24))
         
-        output_path = f"reports/weekly_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        os.makedirs("reports", exist_ok=True)
+        self._add_backtest_summary(story, backtest_result)
+        self._add_backtest_performance(story, backtest_result)
         
-        HTML(string=html_content).write_pdf(
-            output_path,
-            stylesheets=[CSS(string=css_content)]
-        )
+        doc.build(story)
         
-        return output_path
-    
-    def generate_backtest_report(self, data: Dict[str, Any]) -> str:
-        template_content = self._get_backtest_report_template()
-        template = Template(template_content)
+        pdf_data = buffer.getvalue()
+        buffer.close()
         
-        html_content = template.render(
-            title=f"回测报告 - {data.get('strategy_name', '策略')}",
-            strategy_name=data.get('strategy_name', '策略'),
-            backtest_period=f"{data.get('start_date', '')} 至 {data.get('end_date', '')}",
-            summary=data.get('summary', ''),
-            metrics=data.get('metrics', {}),
-            portfolio=data.get('portfolio', {}),
-            performance=data.get('performance', {}),
-            trades=data.get('trades', [])[:20],
-            generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        )
+        if output_path:
+            with open(output_path, 'wb') as f:
+                f.write(pdf_data)
         
-        css_content = self._get_report_css()
+        return pdf_data
+    
+    def _add_backtest_summary(self, story: List, result: Dict):
+        """添加回测概要"""
+        story.append(Paragraph("回测概要", self.styles['CustomHeading']))
         
-        output_path = f"reports/backtest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        os.makedirs("reports", exist_ok=True)
+        summary_data = [
+            ['指标', '数值'],
+            ['回测周期', f"{result.get('start_date', '')} 至 {result.get('end_date', '')}"],
+            ['初始资金', f"{result.get('initial_capital', 0):,.0f}元"],
+            ['最终资金', f"{result.get('final_capital', 0):,.0f}元"],
+            ['总收益率', f"{result.get('total_return', 0):.2f}%"],
+            ['年化收益率', f"{result.get('annual_return', 0):.2f}%"],
+            ['最大回撤', f"{result.get('max_drawdown', 0):.2f}%"],
+            ['夏普比率', f"{result.get('sharpe_ratio', 0):.2f}"]
+        ]
         
-        HTML(string=html_content).write_pdf(
-            output_path,
-            stylesheets=[CSS(string=css_content)]
-        )
+        table = Table(summary_data, colWidths=[2*inch, 3*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (1, 0), colors.HexColor('#2196F3')),
+            ('TEXTCOLOR', (0, 0), (1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
         
-        return output_path
+        story.append(table)
+        story.append(Spacer(1, 24))
     
-    def _get_daily_report_template(self) -> str:
-        return """
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
-</head>
-<body>
-    <div class="header">
-        <h1>{{ title }}</h1>
-        <p class="date">生成时间: {{ generated_at }}</p>
-    </div>
-    
-    <div class="section">
-        <h2>市场摘要</h2>
-        <p>{{ summary }}</p>
-    </div>
-    
-    <div class="section">
-        <h2>市场亮点</h2>
-        <div class="highlights">
-            {% for highlight in highlights %}
-            <div class="highlight-item">
-                <span class="highlight-title">{{ highlight.title }}</span>
-                <span class="highlight-value">{{ highlight.value }}</span>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    
-    <div class="section">
-        <h2>市场数据</h2>
-        <table class="data-table">
-            <tr>
-                <td>上证指数</td>
-                <td>{{ market_data.sh_index|default('--') }}</td>
-            </tr>
-            <tr>
-                <td>深证成指</td>
-                <td>{{ market_data.sz_index|default('--') }}</td>
-            </tr>
-            <tr>
-                <td>创业板指</td>
-                <td>{{ market_data.cy_index|default('--') }}</td>
-            </tr>
-            <tr>
-                <td>成交额</td>
-                <td>{{ market_data.volume|default('--') }}</td>
-            </tr>
-        </table>
-    </div>
-    
-    <div class="section">
-        <h2>AI评分TOP10</h2>
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>排名</th>
-                    <th>代码</th>
-                    <th>名称</th>
-                    <th>评分</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for stock in top_stocks %}
-                <tr>
-                    <td>{{ loop.index }}</td>
-                    <td>{{ stock.code }}</td>
-                    <td>{{ stock.name }}</td>
-                    <td>{{ stock.score|round(2) }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    
-    <div class="section">
-        <h2>板块表现</h2>
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>板块</th>
-                    <th>涨跌幅</th>
-                    <th>热度</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for sector in sectors %}
-                <tr>
-                    <td>{{ sector.name }}</td>
-                    <td>{{ sector.pct_change }}%</td>
-                    <td>{{ sector.heat }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    
-    <div class="footer">
-        <p>AI量化研究平台 | 本报告由AI自动生成，仅供参考</p>
-    </div>
-</body>
-</html>
-"""
-    
-    def _get_weekly_report_template(self) -> str:
-        return """
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
-</head>
-<body>
-    <div class="header">
-        <h1>{{ title }}</h1>
-        <p class="date">生成时间: {{ generated_at }}</p>
-    </div>
-    
-    <div class="section">
-        <h2>本周摘要</h2>
-        <p>{{ summary }}</p>
-    </div>
-    
-    <div class="section">
-        <h2>市场亮点</h2>
-        <div class="highlights">
-            {% for highlight in highlights %}
-            <div class="highlight-item">
-                <span class="highlight-title">{{ highlight.title }}</span>
-                <span class="highlight-value">{{ highlight.value }}</span>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    
-    <div class="section">
-        <h2>市场概览</h2>
-        <table class="data-table">
-            <tr>
-                <td>上证指数周涨跌</td>
-                <td>{{ market_summary.sh_change|default('--') }}</td>
-            </tr>
-            <tr>
-                <td>深证成指周涨跌</td>
-                <td>{{ market_summary.sz_change|default('--') }}</td>
-            </tr>
-            <tr>
-                <td>创业板指周涨跌</td>
-                <td>{{ market_summary.cy_change|default('--') }}</td>
-            </tr>
-            <tr>
-                <td>周均成交额</td>
-                <td>{{ market_summary.avg_volume|default('--') }}</td>
-            </tr>
-        </table>
-    </div>
-    
-    <div class="section">
-        <h2>AI评分TOP10</h2>
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>排名</th>
-                    <th>代码</th>
-                    <th>名称</th>
-                    <th>评分</th>
-                    <th>周涨跌</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for stock in top_stocks %}
-                <tr>
-                    <td>{{ loop.index }}</td>
-                    <td>{{ stock.code }}</td>
-                    <td>{{ stock.name }}</td>
-                    <td>{{ stock.score|round(2) }}</td>
-                    <td>{{ stock.weekly_change|default('--') }}%</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    
-    <div class="section">
-        <h2>板块表现</h2>
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>板块</th>
-                    <th>周涨跌</th>
-                    <th>资金流入</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for sector in sector_performance %}
-                <tr>
-                    <td>{{ sector.name }}</td>
-                    <td>{{ sector.weekly_change }}%</td>
-                    <td>{{ sector.inflow|default('--') }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    
-    <div class="section">
-        <h2>风险分析</h2>
-        <table class="data-table">
-            <tr>
-                <td>市场风险等级</td>
-                <td>{{ risk_analysis.level|default('--') }}</td>
-            </tr>
-            <tr>
-                <td>波动率</td>
-                <td>{{ risk_analysis.volatility|default('--') }}</td>
-            </tr>
-            <tr>
-                <td>最大回撤</td>
-                <td>{{ risk_analysis.max_drawdown|default('--') }}</td>
-            </tr>
-        </table>
-    </div>
-    
-    <div class="footer">
-        <p>AI量化研究平台 | 本报告由AI自动生成，仅供参考</p>
-    </div>
-</body>
-</html>
-"""
-    
-    def _get_backtest_report_template(self) -> str:
-        return """
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
-</head>
-<body>
-    <div class="header">
-        <h1>{{ title }}</h1>
-        <p class="date">生成时间: {{ generated_at }}</p>
-    </div>
-    
-    <div class="section">
-        <h2>回测摘要</h2>
-        <p>{{ summary }}</p>
-        <p><strong>回测期间:</strong> {{ backtest_period }}</p>
-    </div>
-    
-    <div class="section">
-        <h2>绩效指标</h2>
-        <table class="data-table">
-            <tr>
-                <td>总收益率</td>
-                <td>{{ metrics.total_return|default('--') }}%</td>
-            </tr>
-            <tr>
-                <td>年化收益率</td>
-                <td>{{ metrics.annual_return|default('--') }}%</td>
-            </tr>
-            <tr>
-                <td>夏普比率</td>
-                <td>{{ metrics.sharpe_ratio|default('--') }}</td>
-            </tr>
-            <tr>
-                <td>最大回撤</td>
-                <td>{{ metrics.max_drawdown|default('--') }}%</td>
-            </tr>
-            <tr>
-                <td>波动率</td>
-                <td>{{ metrics.volatility|default('--') }}%</td>
-            </tr>
-            <tr>
-                <td>胜率</td>
-                <td>{{ metrics.win_rate|default('--') }}%</td>
-            </tr>
-            <tr>
-                <td>交易次数</td>
-                <td>{{ metrics.total_trades|default('--') }}</td>
-            </tr>
-        </table>
-    </div>
-    
-    <div class="section">
-        <h2>持仓配置</h2>
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>代码</th>
-                    <th>权重</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for code, weight in portfolio.items() %}
-                <tr>
-                    <td>{{ code }}</td>
-                    <td>{{ (weight * 100)|round(2) }}%</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    
-    <div class="section">
-        <h2>近期交易记录</h2>
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>日期</th>
-                    <th>类型</th>
-                    <th>代码</th>
-                    <th>价格</th>
-                    <th>原因</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for trade in trades %}
-                <tr>
-                    <td>{{ trade.date }}</td>
-                    <td>{{ trade.type }}</td>
-                    <td>{{ trade.code }}</td>
-                    <td>{{ trade.price }}</td>
-                    <td>{{ trade.reason }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    
-    <div class="footer">
-        <p>AI量化研究平台 | 本报告由AI自动生成，仅供参考</p>
-    </div>
-</body>
-</html>
-"""
-    
-    def _get_report_css(self) -> str:
-        return """
-@page {
-    size: A4;
-    margin: 2cm;
-}
+    def _add_backtest_performance(self, story: List, result: Dict):
+        """添加回测表现"""
+        story.append(Paragraph("回测表现分析", self.styles['CustomHeading']))
+        
+        performance_text = result.get('analysis', '回测表现良好')
+        story.append(Paragraph(performance_text, self.styles['CustomBody']))
+        story.append(Spacer(1, 24))
 
-body {
-    font-family: 'Microsoft YaHei', 'SimHei', Arial, sans-serif;
-    font-size: 12px;
-    line-height: 1.6;
-    color: #333;
-}
 
-.header {
-    text-align: center;
-    margin-bottom: 30px;
-    border-bottom: 2px solid #1a73e8;
-    padding-bottom: 20px;
-}
-
-.header h1 {
-    font-size: 24px;
-    color: #1a73e8;
-    margin: 0 0 10px 0;
-}
-
-.header .date {
-    color: #666;
-    font-size: 11px;
-}
-
-.section {
-    margin-bottom: 25px;
-}
-
-.section h2 {
-    font-size: 16px;
-    color: #1a73e8;
-    border-left: 4px solid #1a73e8;
-    padding-left: 10px;
-    margin-bottom: 15px;
-}
-
-.highlights {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
-.highlight-item {
-    flex: 1;
-    min-width: 150px;
-    background: #f5f5f5;
-    padding: 10px;
-    border-radius: 5px;
-}
-
-.highlight-title {
-    display: block;
-    font-size: 11px;
-    color: #666;
-    margin-bottom: 5px;
-}
-
-.highlight-value {
-    display: block;
-    font-size: 18px;
-    font-weight: bold;
-    color: #1a73e8;
-}
-
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-}
-
-.data-table th,
-.data-table td {
-    border: 1px solid #ddd;
-    padding: 8px 12px;
-    text-align: left;
-}
-
-.data-table th {
-    background-color: #1a73e8;
-    color: white;
-    font-weight: bold;
-}
-
-.data-table tr:nth-child(even) {
-    background-color: #f9f9f9;
-}
-
-.data-table tr:hover {
-    background-color: #f0f0f0;
-}
-
-.footer {
-    text-align: center;
-    margin-top: 40px;
-    padding-top: 20px;
-    border-top: 1px solid #ddd;
-    color: #999;
-    font-size: 10px;
-}
-"""
+pdf_generator = PDFGenerator()

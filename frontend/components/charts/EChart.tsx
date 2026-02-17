@@ -21,8 +21,6 @@ import {
   SankeyChart,
   FunnelChart,
   GaugeChart,
-  WordCloudChart,
-  Chart,
 } from "echarts/charts";
 import {
   GridComponent,
@@ -58,7 +56,6 @@ echarts.use([
   SankeyChart,
   FunnelChart,
   GaugeChart,
-  WordCloudChart,
   GridComponent,
   TooltipComponent,
   TitleComponent,
