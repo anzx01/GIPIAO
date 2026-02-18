@@ -81,6 +81,10 @@ async def lifespan(app: FastAPI):
     app.state.engine = engine
     yield
     logger.info("正在关闭服务...")
+    # 关闭数据库连接
+    from core.database import close_mongodb
+    close_mongodb()
+    logger.info("数据库连接已关闭")
 
 
 app = FastAPI(
@@ -178,4 +182,4 @@ async def clear_cache_endpoint(pattern: str = ""):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)

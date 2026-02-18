@@ -245,13 +245,13 @@ def validate_email(email: Optional[str]) -> Optional[str]:
 def validate_password(password: str) -> str:
     """
     验证密码强度
-    
+
     Args:
         password: 密码
-        
+
     Returns:
         str: 验证后的密码
-        
+
     Raises:
         HTTPException: 如果密码强度不足
     """
@@ -260,19 +260,33 @@ def validate_password(password: str) -> str:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="密码不能为空"
         )
-    
-    if len(password) < 6:
+
+    if len(password) < 8:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="密码长度至少为6个字符"
+            detail="密码长度至少为8个字符"
         )
-    
+
     if len(password) > 50:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="密码长度不能超过50个字符"
         )
-    
+
+    # 检查密码复杂度
+    has_upper = any(c.isupper() for c in password)
+    has_lower = any(c.islower() for c in password)
+    has_digit = any(c.isdigit() for c in password)
+    has_special = any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in password)
+
+    complexity_count = sum([has_upper, has_lower, has_digit, has_special])
+
+    if complexity_count < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="密码必须包含以下至少3种：大写字母、小写字母、数字、特殊字符"
+        )
+
     return password
 
 

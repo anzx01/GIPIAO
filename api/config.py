@@ -7,6 +7,10 @@ from typing import Optional
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
+from dotenv import load_dotenv
+
+# 加载.env文件
+load_dotenv()
 
 
 class DatabaseConfig(BaseModel):
@@ -30,6 +34,17 @@ class JWTConfig(BaseModel):
     secret_key: str = Field(default="your-secret-key-change-in-production", description="JWT密钥")
     algorithm: str = Field(default="HS256", description="JWT算法")
     access_token_expire_minutes: int = Field(default=30, description="访问令牌过期时间（分钟）")
+
+    def validate_secret_key(self):
+        """验证JWT密钥是否安全"""
+        if self.secret_key == "your-secret-key-change-in-production":
+            raise ValueError(
+                "检测到不安全的JWT密钥！\n"
+                "请在.env文件中设置JWT_SECRET_KEY为一个强密钥。\n"
+                "建议使用: python -c 'import secrets; print(secrets.token_urlsafe(32))' 生成"
+            )
+        if len(self.secret_key) < 32:
+            raise ValueError("JWT密钥长度至少需要32个字符")
 
 
 class LoggingConfig(BaseModel):
@@ -101,6 +116,9 @@ class Settings(BaseSettings):
             algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
             access_token_expire_minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
         )
+
+        # 验证JWT密钥安全性
+        self.jwt.validate_secret_key()
         
         self.logging = LoggingConfig(
             level=os.getenv("LOG_LEVEL", "INFO"),

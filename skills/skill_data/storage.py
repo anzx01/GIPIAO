@@ -18,8 +18,9 @@ class DataStorage:
         self.price_dir = self.data_dir / "prices"
         self.financial_dir = self.data_dir / "financial"
         self.news_dir = self.data_dir / "news"
-        
-        for d in [self.price_dir, self.financial_dir, self.news_dir]:
+        self.scores_dir = self.data_dir / "scores"
+
+        for d in [self.price_dir, self.financial_dir, self.news_dir, self.scores_dir]:
             d.mkdir(parents=True, exist_ok=True)
     
     def save_price_data(self, code: str, df: pd.DataFrame) -> str:
@@ -146,5 +147,42 @@ class DataStorage:
         
         file_path = output_dir / f"{code}_{datetime.now().strftime('%Y%m%d')}.csv"
         df.to_csv(file_path, index=False, encoding='utf-8-sig')
-        
+
         return str(file_path)
+
+    def save_stock_score(self, score: dict) -> str:
+        """保存股票评分"""
+        code = score.get('code')
+        if not code:
+            return None
+
+        file_path = self.scores_dir / f"{code}_score.json"
+
+        score['saved_at'] = datetime.now().isoformat()
+
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(score, f, ensure_ascii=False, indent=2, default=str)
+
+        self.logger.info(f"保存 {code} 评分数据")
+        return str(file_path)
+
+    def load_latest_scores(self, limit: int = 10) -> List[dict]:
+        """加载最新的评分数据"""
+        files = list(self.scores_dir.glob("*_score.json"))
+
+        if not files:
+            return []
+
+        scores = []
+        for file_path in files:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    score = json.load(f)
+                    scores.append(score)
+            except Exception as e:
+                self.logger.error(f"加载评分文件失败 {file_path}: {e}")
+
+        # 按总分排序
+        scores = sorted(scores, key=lambda x: x.get('total_score', 0), reverse=True)
+
+        return scores[:limit] if limit else scores

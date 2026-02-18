@@ -32,26 +32,38 @@ class StockDataFetcher:
         
         return result
     
-    def _fetch_single_stock(self, code: str, 
-                            start_date: Optional[str], 
+    def _fetch_single_stock(self, code: str,
+                            start_date: Optional[str],
                             end_date: Optional[str]) -> Optional[pd.DataFrame]:
         """获取单只股票数据 - 使用akshare"""
         try:
             import akshare as ak
-            
+            from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+
             if end_date is None:
                 end_date = datetime.now().strftime("%Y%m%d")
             if start_date is None:
                 start_date = (datetime.now() - timedelta(days=365)).strftime("%Y%m%d")
-            
+
             if code.endswith(".SH") or code.endswith(".SZ"):
                 stock_code = code.split(".")[0]
-                df = ak.stock_zh_a_hist(
-                    symbol=stock_code,
-                    start_date=start_date,
-                    end_date=end_date,
-                    adjust="qfq"
-                )
+
+                # 使用线程池执行，设置10秒超时
+                def fetch_data():
+                    return ak.stock_zh_a_hist(
+                        symbol=stock_code,
+                        start_date=start_date,
+                        end_date=end_date,
+                        adjust="qfq"
+                    )
+
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(fetch_data)
+                    try:
+                        df = future.result(timeout=10)  # 10秒超时
+                    except FutureTimeoutError:
+                        self.logger.error(f"获取 {code} 数据超时（10秒）")
+                        return None
                 
                 if df is not None and not df.empty:
                     df = df.rename(columns={

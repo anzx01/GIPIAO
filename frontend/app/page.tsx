@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Calendar,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   AreaChart,
   Area,
@@ -67,6 +68,8 @@ interface MarketSummary {
 }
 
 export default function DashboardPage() {
+  console.log('=== DashboardPage component loaded ===');
+  const router = useRouter();
   const [marketData, setMarketData] = useState<MarketData[]>([]);
   const [stockRankings, setStockRankings] = useState<StockRanking[]>([]);
   const [riskMetrics, setRiskMetrics] = useState<RiskMetric[]>([]);
@@ -74,58 +77,68 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('=== useEffect triggered ===');
     async function fetchData() {
+      console.log('=== fetchData started ===');
+
+      // 立即设置硬编码数据，不等待API
+      setRiskMetrics([
+        { name: "市场风险", value: 65, status: "中等" },
+        { name: "波动率", value: 18, status: "偏低" },
+        { name: "流动性", value: 82, status: "良好" },
+        { name: "仓位风险", value: 45, status: "安全" },
+      ]);
+
+      setMarketData([
+        { time: "09:30", index: 3250 },
+        { time: "10:00", index: 3262 },
+        { time: "10:30", index: 3258 },
+        { time: "11:00", index: 3275 },
+        { time: "11:30", index: 3280 },
+        { time: "13:00", index: 3278 },
+        { time: "13:30", index: 3290 },
+        { time: "14:00", index: 3302 },
+        { time: "14:30", index: 3295 },
+        { time: "15:00", index: 3310 },
+      ]);
+
       try {
+        // 设置5秒超时
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Request timeout')), 5000)
+        );
+
         const [summaryRes, scoresRes] = await Promise.all([
-          api.getMarketSummary().catch(() => null),
-          api.getStockScores(10).catch(() => null)
+          Promise.race([api.getMarketSummary(), timeoutPromise]).catch((err) => {
+            console.error('Market summary error:', err);
+            return null;
+          }),
+          Promise.race([api.getStockScores(10), timeoutPromise]).catch((err) => {
+            console.error('Stock scores error:', err);
+            return null;
+          })
         ]);
+
+        console.log('API Responses:', { summaryRes, scoresRes });
 
         if (summaryRes?.data) {
           setMarketSummary(summaryRes.data);
         }
 
         if (scoresRes?.data?.items) {
+          console.log('Stock scores items:', scoresRes.data.items);
           const stocks = scoresRes.data.items.map((s: any) => ({
             code: s.code?.replace('.SH', '').replace('.SZ', '') || '',
             name: s.name || s.code || '',
             score: Math.round(s.total_score || 0),
-            change: Math.round((Math.random() - 0.5) * 6 * 100) / 100,
-            industry: '未知'
+            change: s.change || 0,
+            industry: s.industry || '未知'
           }));
           setStockRankings(stocks);
         } else {
-          setStockRankings([
-            { code: "600519", name: "贵州茅台", score: 92, change: 2.3, industry: "白酒" },
-            { code: "000858", name: "五粮液", score: 88, change: 1.8, industry: "白酒" },
-            { code: "601318", name: "中国平安", score: 85, change: -0.5, industry: "保险" },
-            { code: "600036", name: "招商银行", score: 83, change: 1.2, industry: "银行" },
-            { code: "600900", name: "长江电力", score: 81, change: 0.8, industry: "电力" },
-            { code: "300750", name: "宁德时代", score: 79, change: 3.5, industry: "新能源" },
-            { code: "002594", name: "比亚迪", score: 78, change: 2.1, industry: "新能源" },
-            { code: "601888", name: "中国中免", score: 76, change: -1.2, industry: "免税" },
-          ]);
+          console.warn('No stock scores data:', scoresRes);
+          setStockRankings([]);
         }
-
-        setRiskMetrics([
-          { name: "市场风险", value: 65, status: "中等" },
-          { name: "波动率", value: 18, status: "偏低" },
-          { name: "流动性", value: 82, status: "良好" },
-          { name: "仓位风险", value: 45, status: "安全" },
-        ]);
-
-        setMarketData([
-          { time: "09:30", index: 3250 },
-          { time: "10:00", index: 3262 },
-          { time: "10:30", index: 3258 },
-          { time: "11:00", index: 3275 },
-          { time: "11:30", index: 3280 },
-          { time: "13:00", index: 3278 },
-          { time: "13:30", index: 3290 },
-          { time: "14:00", index: 3302 },
-          { time: "14:30", index: 3295 },
-          { time: "15:00", index: 3310 },
-        ]);
       } catch (error) {
         console.error('Failed to fetch data:', error);
       } finally {
@@ -145,8 +158,8 @@ export default function DashboardPage() {
           code: s.code?.replace('.SH', '').replace('.SZ', '') || '',
           name: s.name || s.code || '',
           score: Math.round(s.total_score || 0),
-          change: Math.round((Math.random() - 0.5) * 6 * 100) / 100,
-          industry: '未知'
+          change: s.change || 0,
+          industry: s.industry || '未知'
         }));
         setStockRankings(stocks);
       }
@@ -261,34 +274,40 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={marketData}>
-                  <defs>
-                    <linearGradient id="colorIndex" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
-                  <XAxis dataKey="time" stroke="hsl(215, 20%, 65%)" fontSize={12} />
-                  <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} domain={['dataMin - 20', 'dataMax + 20']} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(222, 47%, 8%)',
-                      border: '1px solid hsl(217, 33%, 17%)',
-                      borderRadius: '12px',
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="index"
-                    stroke="hsl(199, 89%, 48%)"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorIndex)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              {marketData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={marketData}>
+                    <defs>
+                      <linearGradient id="colorIndex" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
+                    <XAxis dataKey="time" stroke="hsl(215, 20%, 65%)" fontSize={12} />
+                    <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} domain={['dataMin - 20', 'dataMax + 20']} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(222, 47%, 8%)',
+                        border: '1px solid hsl(217, 33%, 17%)',
+                        borderRadius: '12px',
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="index"
+                      stroke="hsl(199, 89%, 48%)"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorIndex)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-muted-foreground">
+                  {loading ? '加载中...' : '暂无数据'}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -351,52 +370,60 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {stockRankings.map((stock, index) => (
-                    <tr key={stock.code} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                      <td className="py-3 px-4">
-                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium ${
-                          index < 3 ? 'bg-primary/10 text-primary' : 'bg-white/5 text-muted-foreground'
-                        }`}>
-                          {index + 1}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-sm">{stock.code}</td>
-                      <td className="py-3 px-4 font-medium">{stock.name}</td>
-                      <td className="py-3 px-4">
-                        <span className="text-xs px-2 py-1 rounded-full bg-white/5">{stock.industry}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 rounded-full bg-white/5 overflow-hidden">
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${stock.score}%`,
-                                background: stock.score >= 80 
-                                  ? 'hsl(160, 84%, 39%)' 
-                                  : stock.score >= 60 
-                                  ? 'hsl(38, 92%, 50%)'
-                                  : 'hsl(0, 84%, 60%)'
-                              }}
-                            />
-                          </div>
-                          <span className="text-sm font-medium">{stock.score}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1">
-                          {stock.change > 0 ? (
-                            <ArrowUpRight className="h-4 w-4 text-success" />
-                          ) : (
-                            <ArrowDownRight className="h-4 w-4 text-danger" />
-                          )}
-                          <span className={stock.change > 0 ? "text-success" : "text-danger"}>
-                            {stock.change > 0 ? "+" : ""}{stock.change}%
+                  {stockRankings.length > 0 ? (
+                    stockRankings.map((stock, index) => (
+                      <tr key={stock.code} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                        <td className="py-3 px-4">
+                          <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium ${
+                            index < 3 ? 'bg-primary/10 text-primary' : 'bg-white/5 text-muted-foreground'
+                          }`}>
+                            {index + 1}
                           </span>
-                        </div>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-sm">{stock.code}</td>
+                        <td className="py-3 px-4 font-medium">{stock.name}</td>
+                        <td className="py-3 px-4">
+                          <span className="text-xs px-2 py-1 rounded-full bg-white/5">{stock.industry}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 h-2 rounded-full bg-white/5 overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${stock.score}%`,
+                                  background: stock.score >= 80
+                                    ? 'hsl(160, 84%, 39%)'
+                                    : stock.score >= 60
+                                    ? 'hsl(38, 92%, 50%)'
+                                    : 'hsl(0, 84%, 60%)'
+                                }}
+                              />
+                            </div>
+                            <span className="text-sm font-medium">{stock.score}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1">
+                            {stock.change > 0 ? (
+                              <ArrowUpRight className="h-4 w-4 text-success" />
+                            ) : (
+                              <ArrowDownRight className="h-4 w-4 text-danger" />
+                            )}
+                            <span className={stock.change > 0 ? "text-success" : "text-danger"}>
+                              {stock.change > 0 ? "+" : ""}{stock.change}%
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                        {loading ? '加载中...' : '暂无股票数据'}
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -409,21 +436,27 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={sectorData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" horizontal={false} />
-                  <XAxis type="number" stroke="hsl(215, 20%, 65%)" fontSize={12} />
-                  <YAxis dataKey="name" type="category" stroke="hsl(215, 20%, 65%)" fontSize={12} width={50} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(222, 47%, 8%)',
-                      border: '1px solid hsl(217, 33%, 17%)',
-                      borderRadius: '12px',
-                    }}
-                  />
-                  <Bar dataKey="value" fill="hsl(199, 89%, 48%)" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {sectorData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={sectorData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" horizontal={false} />
+                    <XAxis type="number" stroke="hsl(215, 20%, 65%)" fontSize={12} />
+                    <YAxis dataKey="name" type="category" stroke="hsl(215, 20%, 65%)" fontSize={12} width={50} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(222, 47%, 8%)',
+                        border: '1px solid hsl(217, 33%, 17%)',
+                        borderRadius: '12px',
+                      }}
+                    />
+                    <Bar dataKey="value" fill="hsl(199, 89%, 48%)" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-muted-foreground">
+                  {loading ? '加载中...' : '暂无数据'}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

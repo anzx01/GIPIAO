@@ -12,28 +12,33 @@ import time
 
 class CacheStore:
     """简单的内存缓存存储"""
-    
+
     def __init__(self):
         self._cache: dict = {}
         self._timestamps: dict = {}
-    
+        self._ttls: dict = {}
+
     def get(self, key: str) -> Optional[Any]:
         """获取缓存"""
         if key not in self._cache:
             return None
-        
+
         timestamp = self._timestamps.get(key, 0)
-        if time.time() - timestamp > 3600:
+        ttl = self._ttls.get(key, 3600)
+
+        if time.time() - timestamp > ttl:
             del self._cache[key]
             del self._timestamps[key]
+            del self._ttls[key]
             return None
-        
+
         return self._cache[key]
-    
+
     def set(self, key: str, value: Any, ttl: int = 3600) -> None:
         """设置缓存"""
         self._cache[key] = value
         self._timestamps[key] = time.time()
+        self._ttls[key] = ttl
     
     def delete(self, key: str) -> None:
         """删除缓存"""
@@ -41,18 +46,21 @@ class CacheStore:
             del self._cache[key]
         if key in self._timestamps:
             del self._timestamps[key]
+        if key in self._ttls:
+            del self._ttls[key]
     
     def clear(self) -> None:
         """清空缓存"""
         self._cache.clear()
         self._timestamps.clear()
+        self._ttls.clear()
     
     def cleanup(self) -> None:
         """清理过期缓存"""
         current_time = time.time()
         expired_keys = [
             key for key, timestamp in self._timestamps.items()
-            if current_time - timestamp > 3600
+            if current_time - timestamp > self._ttls.get(key, 3600)
         ]
         for key in expired_keys:
             self.delete(key)

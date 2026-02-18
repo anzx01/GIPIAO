@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>API测试</h1>
+    <button onclick="testScores()">测试 /api/stocks/scores</button>
+    <button onclick="testSummary()">测试 /api/market/summary</button>
+    <pre id="output"></pre>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8001';
+        const output = document.getElementById('output');
+
+        async function testScores() {
+            output.textContent = '正在请求 /api/stocks/scores?top_n=10...\n';
+            try {
+                const response = await fetch(`${API_BASE}/api/stocks/scores?top_n=10`);
+                const data = await response.json();
+                output.textContent += `状态: ${response.status}\n`;
+                output.textContent += `响应: ${JSON.stringify(data, null, 2)}\n`;
+            } catch (error) {
+                output.textContent += `错误: ${error.message}\n`;
+            }
+        }
+
+        async function testSummary() {
+            output.textContent = '正在请求 /api/market/summary...\n';
+            try {
+                const response = await fetch(`${API_BASE}/api/market/summary`);
+                const data = await response.json();
+                output.textContent += `状态: ${response.status}\n`;
+                output.textContent += `响应: ${JSON.stringify(data, null, 2)}\n`;
+            } catch (error) {
+                output.textContent += `错误: ${error.message}\n`;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -44,10 +44,10 @@ class StrategyAnalyzer:
     
     def _analyze_single_stock(self, df: pd.DataFrame) -> dict:
         """分析单只股票"""
-        
-        if df is None or len(df) < 30:
+
+        if df is None or df.empty or len(df) < 30:
             return {
-                'code': df['code'].iloc[0] if df is not None and len(df) > 0 else 'unknown',
+                'code': df['code'].iloc[0] if df is not None and not df.empty and len(df) > 0 else 'unknown',
                 'return_5d': 0,
                 'return_20d': 0,
                 'volatility': 0,
@@ -91,30 +91,34 @@ class StrategyAnalyzer:
         current = close.iloc[-1]
         
         rsi = self._calculate_rsi(close)
-        
+
         ema12 = close.ewm(span=12, adjust=False).mean()
         ema26 = close.ewm(span=26, adjust=False).mean()
         macd = ema12 - ema26
         signal_line = macd.ewm(span=9, adjust=False).mean()
-        
+
+        # 获取最新的MACD值
+        macd_current = macd.iloc[-1]
+        signal_current = signal_line.iloc[-1]
+
         score = 50
-        
+
         if ma5 > ma10 > ma20:
             score += 20
         elif ma5 > ma20:
             score += 10
-        
+
         if current > ma5:
             score += 10
-        
+
         if rsi < 30:
             score += 15
         elif rsi > 70:
             score -= 15
         elif rsi < 50:
             score += 5
-        
-        if macd > signal_line:
+
+        if macd_current > signal_current:
             score += 10
         else:
             score -= 5

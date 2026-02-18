@@ -108,23 +108,29 @@ async def get_stock_scores(
     top_n: Optional[int] = Query(10, ge=1, le=50)
 ):
     engine = request.app.state.engine
-    
+
     try:
-        result = engine.run_daily_analysis()
-        
-        if result["status"] == "error":
-            raise HTTPException(status_code=500, detail=result.get("error"))
-        
-        scores = result.get("data", {}).get("stock_scores", [])
-        
+        # 先尝试从存储中读取已有的评分数据
+        scores = engine.storage.load_latest_scores(limit=50)
+
+        # 如果没有数据，返回提示信息而不是触发耗时的分析
         if not scores:
-            raise HTTPException(status_code=404, detail="暂无评分数据，请稍后再试")
-        
+            return {
+                "code": 200,
+                "data": {
+                    "items": [],
+                    "total": 0,
+                    "message": "暂无评分数据，后台分析正在进行中，请稍后刷新"
+                }
+            }
+
+        # 添加股票名称
         for score in scores:
             score["name"] = _get_stock_name(score["code"])
-        
+
+        # 按评分排序
         scores = sorted(scores, key=lambda x: x.get("total_score", 0), reverse=True)
-        
+
         return {
             "code": 200,
             "data": {
@@ -135,6 +141,7 @@ async def get_stock_scores(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error in get_stock_scores: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -342,21 +349,3 @@ def _get_stock_name(code: str) -> str:
         "000333": "美的集团",
     }
     return names.get(code, code)
-
-
-def _generate_mock_scores(stock_list: list) -> list:
-    import random
-    scores = []
-    for code in stock_list:
-        scores.append({
-            "code": code,
-            "total_score": round(random.uniform(60, 95), 2),
-            "pe_score": round(random.uniform(60, 90), 2),
-            "pb_score": round(random.uniform(60, 90), 2),
-            "roe_score": round(random.uniform(60, 90), 2),
-            "momentum_score": round(random.uniform(60, 90), 2),
-            "volatility_score": round(random.uniform(60, 90), 2),
-            "liquidity_score": round(random.uniform(60, 90), 2),
-            "sentiment_score": round(random.uniform(50, 80), 2),
-        })
-    return scores

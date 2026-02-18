@@ -1,4 +1,16 @@
-const API_BASE_URL = 'http://127.0.0.1:8001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8001';
+
+// 自定义错误类
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public statusCode: number,
+    public errorType: 'network' | 'auth' | 'validation' | 'server' | 'unknown'
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
 
 class ApiClient {
   private baseUrl: string;
@@ -16,7 +28,7 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...options.headers,
@@ -26,17 +38,45 @@ class ApiClient {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-      throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Request failed' }));
+
+        // 根据状态码分类错误
+        let errorType: ApiError['errorType'] = 'unknown';
+        if (response.status === 401 || response.status === 403) {
+          errorType = 'auth';
+        } else if (response.status === 422 || response.status === 400) {
+          errorType = 'validation';
+        } else if (response.status >= 500) {
+          errorType = 'server';
+        }
+
+        throw new ApiError(
+          error.detail || `HTTP error! status: ${response.status}`,
+          response.status,
+          errorType
+        );
+      }
+
+      return response.json();
+    } catch (error) {
+      // 网络错误
+      if (error instanceof TypeError) {
+        throw new ApiError('网络连接失败，请检查网络设置', 0, 'network');
+      }
+      // 重新抛出ApiError
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      // 其他未知错误
+      throw new ApiError('未知错误', 0, 'unknown');
     }
-
-    return response.json();
   }
 
   setToken(token: string) {

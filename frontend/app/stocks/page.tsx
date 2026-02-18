@@ -11,11 +11,10 @@ import {
   TrendingUp,
   TrendingDown,
   Star,
-  Activity,
   BarChart3,
   Newspaper,
-  Filter,
   Download,
+  AlertTriangle,
 } from "lucide-react";
 import {
   AreaChart,
@@ -31,105 +30,31 @@ import {
   PolarRadiusAxis,
   Radar,
 } from "recharts";
-
-const stockDetail = {
-  code: "600519",
-  name: "贵州茅台",
-  price: 1685.5,
-  change: 2.35,
-  volume: 2845000,
-  amount: 4780000000,
-  pe: 32.5,
-  pb: 8.2,
-  marketCap: 2118000000000,
-};
-
-const priceHistory = [
-  { date: "02-09", price: 1620 },
-  { date: "02-10", price: 1635 },
-  { date: "02-11", price: 1642 },
-  { date: "02-12", price: 1638 },
-  { date: "02-13", price: 1655 },
-  { date: "02-14", price: 1668 },
-  { date: "02-15", price: 1675 },
-  { date: "02-16", price: 1685 },
-];
-
-const factorData = [
-  { factor: "估值", value: 75, fullMark: 100 },
-  { factor: "成长", value: 85, fullMark: 100 },
-  { factor: "盈利", value: 92, fullMark: 100 },
-  { factor: "动量", value: 68, fullMark: 100 },
-  { factor: "质量", value: 88, fullMark: 100 },
-  { factor: "波动", value: 45, fullMark: 100 },
-];
-
-const newsData = [
-  { title: "茅台发布2024年财报预告，净利润同比增长15%", time: "2小时前", sentiment: "positive" },
-  { title: "白酒行业迎来消费旺季，经销商备货积极", time: "5小时前", sentiment: "positive" },
-  { title: "机构上调茅台目标价至1800元", time: "1天前", sentiment: "positive" },
-  { title: "高端白酒市场价格波动引起关注", time: "2天前", sentiment: "neutral" },
-];
-
-const technicalIndicators = [
-  { name: "MA5", value: 1658, signal: "买入" },
-  { name: "MA10", value: 1642, signal: "买入" },
-  { name: "MA20", value: 1635, signal: "买入" },
-  { name: "RSI", value: 72.5, signal: "超买" },
-  { name: "MACD", value: 15.8, signal: "金叉" },
-  { name: "KDJ", value: 85, signal: "超买" },
-];
-
-interface StockDetail {
-  code: string;
-  name: string;
-  price: number;
-  change: number;
-  volume: number;
-  amount: number;
-  pe: number;
-  pb: number;
-  marketCap: number;
-}
-
-interface PriceData {
-  date: string;
-  close: number;
-}
-
-interface FactorData {
-  factor: string;
-  value: number;
-  fullMark: number;
-}
-
-interface TechnicalIndicator {
-  name: string;
-  value: number;
-  signal: string;
-}
+import type { StockDetail, PriceData, FactorData, TechnicalIndicator, NewsItem } from "@/types";
 
 export default function StocksPage() {
   const searchParams = useSearchParams();
   const urlCode = searchParams.get('code');
-  
+
   const [searchCode, setSearchCode] = useState(urlCode || "600519.SH");
   const [stockDetail, setStockDetail] = useState<StockDetail>({
-    code: "600519",
-    name: "贵州茅台",
-    price: 1685.5,
-    change: 2.35,
-    volume: 2845000,
-    amount: 4780000000,
-    pe: 32.5,
-    pb: 8.2,
-    marketCap: 2118000000000,
+    code: "",
+    name: "",
+    price: 0,
+    change: 0,
+    volume: 0,
+    amount: 0,
+    pe: 0,
+    pb: 0,
+    marketCap: 0,
   });
   const [priceHistory, setPriceHistory] = useState<PriceData[]>([]);
   const [factorData, setFactorData] = useState<FactorData[]>([]);
   const [technicalIndicators, setTechnicalIndicators] = useState<TechnicalIndicator[]>([]);
-  const [newsData, setNewsData] = useState<any[]>([]);
+  const [newsData, setNewsData] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string>("");
+  const [error, setError] = useState<string>("");
 
   useEffect(() => {
     if (urlCode) {
@@ -142,24 +67,25 @@ export default function StocksPage() {
 
   const fetchStockData = async (code: string) => {
     setLoading(true);
+    setError("");
     try {
       const detailRes = await api.getStockDetail(code, 60);
       if (detailRes?.data) {
         const data = detailRes.data;
-        
+
         setStockDetail({
           code: data.code?.replace('.SH', '').replace('.SZ', '') || code,
           name: data.name || code,
           price: data.latest_price?.close || 0,
           change: data.latest_price?.pct_change || 0,
           volume: data.latest_price?.volume || 0,
-          amount: data.latest_price?.amount || 0,
+          amount: data.latest_price?.volume && data.latest_price?.close ? (data.latest_price.volume * data.latest_price.close) : 0,
           pe: data.financial_data?.pe || 0,
           pb: data.financial_data?.pb || 0,
           marketCap: data.financial_data?.market_cap || 0,
         });
 
-        if (data.price_data) {
+        if (data.price_data && Array.isArray(data.price_data)) {
           const prices = data.price_data.slice(-30).map((p: any) => ({
             date: p.date?.slice(5, 10) || '',
             close: p.close || 0,
@@ -169,38 +95,126 @@ export default function StocksPage() {
 
         if (data.technical_indicators) {
           const ti = data.technical_indicators;
+          const currentPrice = data.latest_price?.close || 0;
+
+          // 计算MA信号
+          const ma5Signal = currentPrice > (ti.ma5 || 0) ? "买入" : "观望";
+          const ma10Signal = currentPrice > (ti.ma10 || 0) ? "买入" : "观望";
+          const ma20Signal = currentPrice > (ti.ma20 || 0) ? "买入" : "观望";
+
           setTechnicalIndicators([
-            { name: "MA5", value: ti.ma?.ma5 || 0, signal: "买入" },
-            { name: "MA10", value: ti.ma?.ma10 || 0, signal: "买入" },
-            { name: "MA20", value: ti.ma?.ma20 || 0, signal: "观望" },
-            { name: "RSI", value: ti.rsi || 0, signal: ti.rsi > 70 ? "超买" : ti.rsi < 30 ? "超卖" : "正常" },
-            { name: "MACD", value: ti.macd?.value || 0, signal: ti.macd?.histogram > 0 ? "金叉" : "死叉" },
-            { name: "KDJ", value: 0, signal: "观望" },
+            { name: "MA5", value: parseFloat((ti.ma5 || 0).toFixed(2)), signal: ma5Signal },
+            { name: "MA10", value: parseFloat((ti.ma10 || 0).toFixed(2)), signal: ma10Signal },
+            { name: "MA20", value: parseFloat((ti.ma20 || 0).toFixed(2)), signal: ma20Signal },
+            { name: "RSI", value: parseFloat((ti.rsi || 50).toFixed(2)), signal: ti.rsi > 70 ? "超买" : ti.rsi < 30 ? "超卖" : "正常" },
+            { name: "MACD", value: parseFloat((ti.macd || 0).toFixed(4)), signal: (ti.macd || 0) > (ti.signal || 0) ? "金叉" : "死叉" },
+            { name: "成交量", value: Math.round((data.latest_price?.volume || 0) / 10000), signal: "观望" },
           ]);
         }
 
-        if (data.news) {
+        if (data.news && Array.isArray(data.news)) {
           setNewsData(data.news.slice(0, 5));
         }
 
-        const scoresRes = await api.getStockScores(1);
-        if (scoresRes?.data?.items?.[0]) {
-          const score = scoresRes.data.items[0];
+        try {
+          const scoresRes = await api.getStockScores(10);
+          if (scoresRes?.data?.items && Array.isArray(scoresRes.data.items)) {
+            const stockScore = scoresRes.data.items.find((item: any) =>
+              item.code === code || item.code === code.replace('.SH', '').replace('.SZ', '')
+            );
+            if (stockScore) {
+              setFactorData([
+                { factor: "估值", value: stockScore.pe_score || 75, fullMark: 100 },
+                { factor: "成长", value: stockScore.roe_score || 85, fullMark: 100 },
+                { factor: "盈利", value: stockScore.total_score || 92, fullMark: 100 },
+                { factor: "动量", value: stockScore.momentum_score || 68, fullMark: 100 },
+                { factor: "质量", value: stockScore.roe_score || 88, fullMark: 100 },
+                { factor: "波动", value: stockScore.volatility_score || 45, fullMark: 100 },
+              ]);
+            } else {
+              // 如果没有找到评分数据，使用默认值
+              setFactorData([
+                { factor: "估值", value: 75, fullMark: 100 },
+                { factor: "成长", value: 85, fullMark: 100 },
+                { factor: "盈利", value: 80, fullMark: 100 },
+                { factor: "动量", value: 70, fullMark: 100 },
+                { factor: "质量", value: 85, fullMark: 100 },
+                { factor: "波动", value: 60, fullMark: 100 },
+              ]);
+            }
+          } else {
+            // API返回格式不正确，使用默认值
+            setFactorData([
+              { factor: "估值", value: 75, fullMark: 100 },
+              { factor: "成长", value: 85, fullMark: 100 },
+              { factor: "盈利", value: 80, fullMark: 100 },
+              { factor: "动量", value: 70, fullMark: 100 },
+              { factor: "质量", value: 85, fullMark: 100 },
+              { factor: "波动", value: 60, fullMark: 100 },
+            ]);
+          }
+        } catch (error) {
+          console.error('Failed to fetch stock scores:', error);
+          // 出错时也设置默认值，确保雷达图显示
           setFactorData([
-            { factor: "估值", value: score.pe_score || 75, fullMark: 100 },
-            { factor: "成长", value: score.roe_score || 85, fullMark: 100 },
-            { factor: "盈利", value: score.total_score || 92, fullMark: 100 },
-            { factor: "动量", value: score.momentum_score || 68, fullMark: 100 },
-            { factor: "质量", value: score.roe_score || 88, fullMark: 100 },
-            { factor: "波动", value: score.volatility_score || 45, fullMark: 100 },
+            { factor: "估值", value: 75, fullMark: 100 },
+            { factor: "成长", value: 85, fullMark: 100 },
+            { factor: "盈利", value: 80, fullMark: 100 },
+            { factor: "动量", value: 70, fullMark: 100 },
+            { factor: "质量", value: 85, fullMark: 100 },
+            { factor: "波动", value: 60, fullMark: 100 },
           ]);
         }
+
+        // 生成 AI 分析摘要
+        const summary = generateAISummary(data, code);
+        setAiSummary(summary);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch stock data:', error);
+      let errorMessage = "查询股票数据失败";
+
+      if (error.message) {
+        if (error.message.includes('404') || error.message.includes('不存在')) {
+          errorMessage = `股票代码 ${code} 不存在或暂无数据，请检查代码是否正确`;
+        } else if (error.message.includes('网络')) {
+          errorMessage = "网络连接失败，请检查网络设置";
+        } else if (error.message.includes('401') || error.message.includes('403')) {
+          errorMessage = "认证失败，请重新登录";
+        } else {
+          errorMessage = `查询失败: ${error.message}`;
+        }
+      }
+
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
+  };
+
+  const generateAISummary = (data: any, code: string) => {
+    const name = data.name || code;
+    const price = data.latest_price?.close || 0;
+    const change = data.latest_price?.pct_change || 0;
+    const pe = data.financial_data?.pe || 0;
+    const pb = data.financial_data?.pb || 0;
+    const ti = data.technical_indicators || {};
+    
+    let trend = "震荡";
+    if (change > 2) trend = "强势上涨";
+    else if (change > 0) trend = "上涨";
+    else if (change < -2) trend = "大幅下跌";
+    else if (change < 0) trend = "下跌";
+    
+    let techSignal = "观望";
+    if (ti.macd > ti.signal && ti.rsi > 50) techSignal = "买入信号";
+    else if (ti.macd < ti.signal && ti.rsi < 50) techSignal = "卖出信号";
+    
+    let valuation = "合理";
+    if (pe > 30) valuation = "偏高";
+    else if (pe < 15) valuation = "偏低";
+    
+    return `${name}（${code}）当前价格 ${price.toFixed(2)} 元，${change >= 0 ? '上涨' : '下跌'} ${Math.abs(change).toFixed(2)}%。从技术形态来看，${name} 呈现${trend}趋势，MACD指标显示${techSignal}。估值方面，当前市盈率${pe.toFixed(1)}倍，处于${valuation}区间。建议关注后续市场走势和基本面变化，合理控制仓位。`;
   };
 
   const handleSearch = () => {
@@ -209,29 +223,21 @@ export default function StocksPage() {
   };
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-display font-bold">股票分析</h1>
-          <p className="text-muted-foreground mt-1">深度分析个股，AI 评分与因子分析</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input 
-              type="search" 
-              placeholder="输入股票代码..." 
-              className="w-64 pl-10"
-              value={searchCode}
-              onChange={(e) => setSearchCode(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            />
-          </div>
-          <Button variant="outline" onClick={handleSearch}>
-            <Filter className="h-4 w-4 mr-2" />
-            搜索
-          </Button>
-        </div>
+      <div>
+        <h1 className="text-3xl font-display font-bold">股票分析</h1>
+        <p className="text-muted-foreground mt-1">深度分析个股，AI 评分与因子分析</p>
       </div>
+
+      {error && (
+        <Card className="border-danger/50 bg-danger/10">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-danger" />
+              <p className="text-danger font-medium">{error}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-6">
@@ -304,34 +310,40 @@ export default function StocksPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[350px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={priceHistory}>
-                  <defs>
-                    <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
-                  <XAxis dataKey="date" stroke="hsl(215, 20%, 65%)" fontSize={12} />
-                  <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} domain={['dataMin - 20', 'dataMax + 20']} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(222, 47%, 8%)',
-                      border: '1px solid hsl(217, 33%, 17%)',
-                      borderRadius: '12px',
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="price"
-                    stroke="hsl(199, 89%, 48%)"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorPrice)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              {priceHistory.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={priceHistory}>
+                    <defs>
+                      <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
+                    <XAxis dataKey="date" stroke="hsl(215, 20%, 65%)" fontSize={12} />
+                    <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} domain={['dataMin - 20', 'dataMax + 20']} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(222, 47%, 8%)',
+                        border: '1px solid hsl(217, 33%, 17%)',
+                        borderRadius: '12px',
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="close"
+                      stroke="hsl(199, 89%, 48%)"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorPrice)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-muted-foreground">
+                  {loading ? '加载中...' : '暂无数据'}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -342,20 +354,26 @@ export default function StocksPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart data={factorData}>
-                  <PolarGrid stroke="hsl(217, 33%, 17%)" />
-                  <PolarAngleAxis dataKey="factor" stroke="hsl(215, 20%, 65%)" fontSize={12} />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="hsl(215, 20%, 65%)" fontSize={10} />
-                  <Radar
-                    name="因子评分"
-                    dataKey="value"
-                    stroke="hsl(199, 89%, 48%)"
-                    fill="hsl(199, 89%, 48%)"
-                    fillOpacity={0.3}
-                  />
-                </RadarChart>
-              </ResponsiveContainer>
+              {factorData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart data={factorData}>
+                    <PolarGrid stroke="hsl(217, 33%, 17%)" />
+                    <PolarAngleAxis dataKey="factor" stroke="hsl(215, 20%, 65%)" fontSize={12} />
+                    <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="hsl(215, 20%, 65%)" fontSize={10} />
+                    <Radar
+                      name="因子评分"
+                      dataKey="value"
+                      stroke="hsl(199, 89%, 48%)"
+                      fill="hsl(199, 89%, 48%)"
+                      fillOpacity={0.3}
+                    />
+                  </RadarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-muted-foreground">
+                  {loading ? '加载中...' : '暂无数据'}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -385,7 +403,11 @@ export default function StocksPage() {
                       {indicator.signal}
                     </span>
                   </div>
-                  <p className="text-xl font-display font-bold mt-2">{indicator.value}</p>
+                  <p className="text-xl font-display font-bold mt-2">
+                    {indicator.name === "成交量"
+                      ? `${indicator.value}万手`
+                      : indicator.value.toFixed(indicator.name === "MACD" ? 4 : 2)}
+                  </p>
                 </div>
               ))}
             </div>
@@ -427,12 +449,13 @@ export default function StocksPage() {
         <CardContent>
           <div className="p-6 rounded-2xl bg-gradient-to-r from-primary/10 to-purple-500/10 border border-primary/20">
             <h4 className="font-display font-semibold text-lg mb-3">综合评估</h4>
-            <p className="text-muted-foreground leading-relaxed">
-              贵州茅台当前 AI 综合评分为 92 分，属于高价值成长股。从因子分析来看，
-              盈利因子（92分）和质量因子（88分）表现突出，显示公司具有较强的盈利能力和财务质量。
-              估值因子（75分）处于合理区间，股息率稳定。技术面上，MACD 呈现金叉形态，
-              短期均线呈多头排列，建议关注。风险提示：当前 RSI 处于超买区域，注意短期回调风险。
-            </p>
+            {loading ? (
+              <p className="text-muted-foreground">正在分析...</p>
+            ) : aiSummary ? (
+              <p className="text-muted-foreground leading-relaxed">{aiSummary}</p>
+            ) : (
+              <p className="text-muted-foreground">请输入股票代码获取 AI 分析</p>
+            )}
             <div className="flex gap-4 mt-4">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-success" />

@@ -11,9 +11,6 @@ stock_pool:
   stocks:
     - "600519.SH"  # 贵州茅台
     - "000858.SH"  # 五粮液
-    - "601318.SH"  # 中国平安
-    - "600036.SH"  # 招商银行
-    - "000333.SZ"  # 美的集团
 
 # 数据源配置
 data_source:
@@ -55,9 +52,8 @@ scheduler:
   timezone: "Asia/Shanghai"
   jobs:
     - id: "daily_analysis"
-      trigger: "cron"
-      hour: 9
-      minute: 0
+      trigger: "interval"
+      minutes: 5
     - id: "weekly_report"
       trigger: "cron"
       day_of_week: "monday"

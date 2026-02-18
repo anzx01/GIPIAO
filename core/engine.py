@@ -94,11 +94,26 @@ class QuantEngine:
             self.logger.info("步骤4: 股票评分")
             scores = self.scorer.score_stocks(price_data, financial_data, news_data)
             result['data']['stock_scores'] = scores.to_dict('records') if not scores.empty else []
-            
+
+            # 保存评分到存储
+            if not scores.empty:
+                for _, score in scores.iterrows():
+                    self.storage.save_stock_score(score.to_dict())
+                self.logger.info(f"已保存 {len(scores)} 条评分数据到存储")
+
             self.logger.info("步骤5: 策略分析")
-            strategy = self.analyzer.analyze_strategy(price_data, stock_list)
-            result['data']['strategy_analysis'] = strategy
-            
+            try:
+                strategy = self.analyzer.analyze_strategy(price_data, stock_list)
+                result['data']['strategy_analysis'] = strategy
+            except Exception as e:
+                self.logger.error(f"策略分析失败: {e}")
+                result['data']['strategy_analysis'] = {
+                    'total_stocks': len(stock_list),
+                    'analysis_date': datetime.now().strftime("%Y-%m-%d"),
+                    'stocks': [],
+                    'summary': {}
+                }
+
             self.logger.info("步骤6: 风控模拟")
             top_stocks = self.scorer.get_top_stocks(scores, 5)
             

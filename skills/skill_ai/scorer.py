@@ -140,7 +140,7 @@ class StockScorer:
     
     def _score_momentum(self, df: pd.DataFrame) -> float:
         """动量评分 (0-100)"""
-        if df is None or len(df) < 20:
+        if df is None or df.empty or len(df) < 20:
             return 50
         
         recent = df.tail(20)
@@ -159,7 +159,7 @@ class StockScorer:
     
     def _score_volatility(self, df: pd.DataFrame) -> float:
         """波动性评分 (0-100, 适中最好)"""
-        if df is None or len(df) < 20:
+        if df is None or df.empty or len(df) < 20:
             return 50
         
         returns = df['close'].pct_change().dropna()
@@ -182,7 +182,7 @@ class StockScorer:
     
     def _score_liquidity(self, df: pd.DataFrame) -> float:
         """流动性评分 (0-100)"""
-        if df is None or len(df) < 5:
+        if df is None or df.empty or len(df) < 5:
             return 50
         
         recent = df.tail(20)
