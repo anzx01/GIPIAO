@@ -77,7 +77,7 @@ async def get_stock_list(
     for code in stock_list:
         stocks.append({
             "code": code,
-            "name": _get_stock_name(code)
+            "name": await _get_stock_name(request, code)
         })
     
     if keyword:
@@ -126,7 +126,7 @@ async def get_stock_scores(
 
         # 添加股票名称
         for score in scores:
-            score["name"] = _get_stock_name(score["code"])
+            score["name"] = await _get_stock_name(request, score["code"])
 
         # 按评分排序
         scores = sorted(scores, key=lambda x: x.get("total_score", 0), reverse=True)
@@ -220,7 +220,7 @@ async def get_stock_detail(
             "code": 200,
             "data": {
                 "code": code,
-                "name": _get_stock_name(code),
+                "name": await _get_stock_name(request, code),
                 "price_data": price_data_records,
                 "technical_indicators": technical,
                 "financial_data": financial_data.get(code, {}),
@@ -335,17 +335,31 @@ async def get_technical_indicators(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def _get_stock_name(code: str) -> str:
+async def _get_stock_name(request: Request, code: str) -> str:
+    engine = request.app.state.engine
+    
+    # 尝试从缓存的映射中获取
+    if not hasattr(engine, 'stock_map') or not engine.stock_map:
+        try:
+            engine.stock_map = engine.fetcher.get_stock_info_map()
+        except Exception as e:
+            logger.error(f"Failed to fetch stock info map: {e}")
+            engine.stock_map = {}
+            
+    if code in engine.stock_map:
+        return engine.stock_map[code]
+        
+    # 备选硬编码（常用股票）
     names = {
         "600519.SH": "贵州茅台",
         "000858.SH": "五粮液",
         "601318.SH": "中国平安",
         "600036.SH": "招商银行",
         "000333.SZ": "美的集团",
-        "600519": "贵州茅台",
-        "000858": "五粮液",
-        "601318": "中国平安",
-        "600036": "招商银行",
-        "000333": "美的集团",
+        "001314.SZ": "招商积余",
+        "000001.SZ": "平安银行",
+        "600000.SH": "浦发银行",
+        "601398.SH": "工商银行",
+        "601939.SH": "建设银行",
     }
     return names.get(code, code)

@@ -81,34 +81,13 @@ export default function DashboardPage() {
     async function fetchData() {
       console.log('=== fetchData started ===');
 
-      // 立即设置硬编码数据，不等待API
-      setRiskMetrics([
-        { name: "市场风险", value: 65, status: "中等" },
-        { name: "波动率", value: 18, status: "偏低" },
-        { name: "流动性", value: 82, status: "良好" },
-        { name: "仓位风险", value: 45, status: "安全" },
-      ]);
-
-      setMarketData([
-        { time: "09:30", index: 3250 },
-        { time: "10:00", index: 3262 },
-        { time: "10:30", index: 3258 },
-        { time: "11:00", index: 3275 },
-        { time: "11:30", index: 3280 },
-        { time: "13:00", index: 3278 },
-        { time: "13:30", index: 3290 },
-        { time: "14:00", index: 3302 },
-        { time: "14:30", index: 3295 },
-        { time: "15:00", index: 3310 },
-      ]);
-
       try {
-        // 设置5秒超时
+        // 设置10秒超时，因为后端分析可能较慢
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Request timeout')), 5000)
+          setTimeout(() => reject(new Error('Request timeout')), 10000)
         );
 
-        const [summaryRes, scoresRes] = await Promise.all([
+        const [summaryRes, scoresRes, indicesRes] = await Promise.all([
           Promise.race([api.getMarketSummary(), timeoutPromise]).catch((err) => {
             console.error('Market summary error:', err);
             return null;
@@ -116,10 +95,14 @@ export default function DashboardPage() {
           Promise.race([api.getStockScores(10), timeoutPromise]).catch((err) => {
             console.error('Stock scores error:', err);
             return null;
+          }),
+          Promise.race([api.getMarketIndices(), timeoutPromise]).catch((err) => {
+            console.error('Market indices error:', err);
+            return null;
           })
         ]);
 
-        console.log('API Responses:', { summaryRes, scoresRes });
+        console.log('API Responses:', { summaryRes, scoresRes, indicesRes });
 
         if (summaryRes?.data) {
           setMarketSummary(summaryRes.data);
@@ -128,10 +111,10 @@ export default function DashboardPage() {
         if (scoresRes?.data?.items) {
           console.log('Stock scores items:', scoresRes.data.items);
           const stocks = scoresRes.data.items.map((s: any) => ({
-            code: s.code?.replace('.SH', '').replace('.SZ', '') || '',
+            code: s.code || '',
             name: s.name || s.code || '',
             score: Math.round(s.total_score || 0),
-            change: s.change || 0,
+            change: s.pct_change || 0,
             industry: s.industry || '未知'
           }));
           setStockRankings(stocks);
@@ -139,6 +122,41 @@ export default function DashboardPage() {
           console.warn('No stock scores data:', scoresRes);
           setStockRankings([]);
         }
+
+        // 处理指数数据用于图表
+        if (indicesRes?.data && Array.isArray(indicesRes.data)) {
+          // 假设返回的是最近的指数点
+          const chartData = indicesRes.data.map((item: any) => ({
+            time: item.time || item.date || '',
+            index: item.close || item.value || 0
+          }));
+          if (chartData.length > 0) {
+            setMarketData(chartData);
+          }
+        } else {
+          // 默认模拟数据
+          setMarketData([
+            { time: "09:30", index: 3250 },
+            { time: "10:00", index: 3262 },
+            { time: "10:30", index: 3258 },
+            { time: "11:00", index: 3275 },
+            { time: "11:30", index: 3280 },
+            { time: "13:00", index: 3278 },
+            { time: "13:30", index: 3290 },
+            { time: "14:00", index: 3302 },
+            { time: "14:30", index: 3295 },
+            { time: "15:00", index: 3310 },
+          ]);
+        }
+
+        // 风险指标模拟（未来可从后端获取）
+        setRiskMetrics([
+          { name: "市场风险", value: 65, status: "中等" },
+          { name: "波动率", value: 18, status: "偏低" },
+          { name: "流动性", value: 82, status: "良好" },
+          { name: "仓位风险", value: 45, status: "安全" },
+        ]);
+
       } catch (error) {
         console.error('Failed to fetch data:', error);
       } finally {

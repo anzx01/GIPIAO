@@ -125,46 +125,17 @@ async def generate_daily_report(request: Request):
             raise HTTPException(status_code=500, detail=result.get("error"))
         
         data = result.get("data", {})
+        pdf_payload = data.get("report_payload")
         
-        pdf_data = {
-            "date": datetime.now().strftime("%Y-%m-%d"),
-            "summary": data.get("summary", "今日市场整体表现良好，AI评分系统显示优质股票占比提升"),
-            "highlights": [
-                {"title": "上证指数", "value": "+1.25%"},
-                {"title": "深证成指", "value": "+1.58%"},
-                {"title": "创业板指", "value": "+1.85%"},
-                {"title": "成交额", "value": "8,542亿"},
-                {"title": "涨跌比", "value": "2.3:1"},
-                {"title": "北向资金", "value": "+45.6亿"},
-            ],
-            "market_data": {
-                "sh_index": "3,200.00 (+1.25%)",
-                "sz_index": "11,000.00 (+1.58%)",
-                "cy_index": "2,200.00 (+1.85%)",
-                "volume": "8,542亿"
-            },
-            "top_stocks": [
-                {"code": "600519.SH", "name": "贵州茅台", "score": 95.5},
-                {"code": "300750.SZ", "name": "宁德时代", "score": 92.3},
-                {"code": "002594.SZ", "name": "比亚迪", "score": 90.8},
-                {"code": "000858.SH", "name": "五粮液", "score": 89.5},
-                {"code": "601318.SH", "name": "中国平安", "score": 88.2},
-                {"code": "600036.SH", "name": "招商银行", "score": 87.5},
-                {"code": "688981.SH", "name": "中芯国际", "score": 86.8},
-                {"code": "002415.SZ", "name": "海康威视", "score": 85.5},
-                {"code": "000568.SH", "name": "泸州老窖", "score": 84.2},
-                {"code": "600900.SH", "name": "长江电力", "score": 83.5},
-            ],
-            "sectors": [
-                {"name": "新能源", "pct_change": 2.5, "heat": 95},
-                {"name": "半导体", "pct_change": 1.2, "heat": 88},
-                {"name": "人工智能", "pct_change": 3.8, "heat": 92},
-                {"name": "医药生物", "pct_change": -0.5, "heat": 75},
-                {"name": "银行", "pct_change": 0.3, "heat": 65},
-            ]
-        }
+        if not pdf_payload:
+            # 回退到基本数据
+            pdf_payload = {
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "summary": "分析完成，但未生成完整载荷。",
+                "top_stocks": data.get("stock_scores", [])[:10]
+            }
         
-        pdf_path = pdf_generator.generate_daily_report(pdf_data)
+        pdf_path = pdf_generator.generate_daily_report(pdf_payload)
         
         return {
             "code": 200,

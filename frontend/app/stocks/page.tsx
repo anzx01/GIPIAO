@@ -244,11 +244,11 @@ export default function StocksPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center border border-white/10">
-                <span className="text-2xl font-display font-bold gradient-text">{stockDetail.code}</span>
+                <span className="text-xl font-display font-bold gradient-text">{stockDetail.name}</span>
               </div>
               <div>
                 <h2 className="text-2xl font-display font-bold">{stockDetail.name}</h2>
-                <p className="text-muted-foreground">{stockDetail.name}股份有限公司</p>
+                <p className="text-muted-foreground">{stockDetail.code}</p>
               </div>
             </div>
             <div className="text-right">

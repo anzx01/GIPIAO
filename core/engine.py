@@ -41,7 +41,17 @@ class QuantEngine:
         """初始化组件"""
         
         self.fetcher = StockDataFetcher(self.config.get('data_source', {}))
-        self.storage = DataStorage(self.config.get('data_dir', 'data'))
+        
+        # 优先使用 MongoDB 存储，如果配置了的话
+        mongo_conn = self.config.get('database', {}).get('mongodb_connection')
+        if mongo_conn:
+            from skills.skill_data.mongo_storage import MongoDBStorage
+            self.storage = MongoDBStorage(connection_string=mongo_conn).connect()
+            self.logger.info("使用 MongoDB 作为主存储")
+        else:
+            self.storage = DataStorage(self.config.get('data_dir', 'data'))
+            self.logger.info("使用文件系统作为主存储")
+            
         self.news_fetcher = NewsFetcher()
         
         self.scorer = StockScorer(self.config.get('ai_model', {}))
@@ -134,8 +144,23 @@ class QuantEngine:
             market_summary = self.fetcher.fetch_market_summary()
             result['data']['market_summary'] = market_summary
             
+            # 格式化报告所需的数据
+            report_payload = {
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "summary": strategy.get("summary", "今日分析完成，系统已更新评分和风险指标。"),
+                "market_data": {
+                    "total_stocks": market_summary.get("total_stocks", 0),
+                    "up_count": market_summary.get("up_count", 0),
+                    "down_count": market_summary.get("down_count", 0),
+                    "volume": f"{market_summary.get('total_amount', 0) / 1e8:.2f}亿"
+                },
+                "top_stocks": scores.head(10).to_dict('records') if not scores.empty else [],
+                "risk_metrics": result['data'].get('risk_metrics', {})
+            }
+            result['data']['report_payload'] = report_payload
+
             self.logger.info("步骤8: 生成报告")
-            report_path = self.report_gen.generate_daily_report(result['data'])
+            report_path = self.report_gen.generate_daily_report(report_payload)
             result['data']['report_path'] = report_path
             
             self.logger.info("步骤9: 生成图表")

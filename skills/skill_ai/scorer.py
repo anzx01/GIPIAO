@@ -13,13 +13,17 @@ class StockScorer:
         self.logger = loguru.logger
         
         self.factor_weights = {
-            'pe_ratio': 0.15,
-            'pb_ratio': 0.10,
-            'roe': 0.20,
-            'revenue_growth': 0.15,
-            'momentum': 0.20,
-            'volatility': 0.10,
-            'liquidity': 0.10
+            'pe': 0.10,
+            'pb': 0.05,
+            'roe': 0.15,
+            'revenue_growth': 0.10,
+            'momentum': 0.10,
+            'volatility': 0.05,
+            'liquidity': 0.05,
+            'macd': 0.15,
+            'rsi': 0.10,
+            'kdj': 0.10,
+            'sentiment': 0.05
         }
         
         if 'factors' in self.config and isinstance(self.config['factors'], dict):
@@ -62,10 +66,16 @@ class StockScorer:
         factor_scores['pe_score'] = self._score_pe(financial.get('pe', 20))
         factor_scores['pb_score'] = self._score_pb(financial.get('pb', 3))
         factor_scores['roe_score'] = self._score_roe(financial.get('roe', 10))
+        factor_scores['revenue_growth_score'] = self._score_revenue_growth(financial.get('revenue_growth'))
         
         factor_scores['momentum_score'] = self._score_momentum(price_df)
         factor_scores['volatility_score'] = self._score_volatility(price_df)
         factor_scores['liquidity_score'] = self._score_liquidity(price_df)
+        
+        # 技术指标评分
+        factor_scores['macd_score'] = self._score_macd(price_df)
+        factor_scores['rsi_score'] = self._score_rsi(price_df)
+        factor_scores['kdj_score'] = self._score_kdj(price_df)
         
         if news:
             factor_scores['sentiment_score'] = self._score_sentiment(news)
@@ -137,6 +147,22 @@ class StockScorer:
             return 40
         else:
             return 20
+
+    def _score_revenue_growth(self, growth: float) -> float:
+        """营收增长评分 (0-100)"""
+        if growth is None:
+            return 50
+        
+        if growth > 30:
+            return 100
+        elif growth > 15:
+            return 80
+        elif growth > 0:
+            return 60
+        elif growth > -10:
+            return 40
+        else:
+            return 20
     
     def _score_momentum(self, df: pd.DataFrame) -> float:
         """动量评分 (0-100)"""
@@ -199,6 +225,97 @@ class StockScorer:
             return 40
         else:
             return 20
+
+    def _score_macd(self, df: pd.DataFrame) -> float:
+        """MACD评分 (0-100)"""
+        if df is None or df.empty or 'close' not in df.columns or len(df) < 35:
+            return 50
+        
+        try:
+            # 简单计算 MACD (12, 26, 9)
+            close = df['close']
+            exp1 = close.ewm(span=12, adjust=False).mean()
+            exp2 = close.ewm(span=26, adjust=False).mean()
+            macd = exp1 - exp2
+            signal = macd.ewm(span=9, adjust=False).mean()
+            hist = macd - signal
+            
+            current_hist = hist.iloc[-1]
+            prev_hist = hist.iloc[-2]
+            
+            if prev_hist <= 0 and current_hist > 0:
+                return 90  # 金叉
+            elif prev_hist >= 0 and current_hist < 0:
+                return 20  # 死叉
+            elif current_hist > prev_hist:
+                return 70 if current_hist > 0 else 60
+            else:
+                return 40 if current_hist < 0 else 30
+        except Exception:
+            return 50
+
+    def _score_rsi(self, df: pd.DataFrame, period: int = 14) -> float:
+        """RSI评分 (0-100)"""
+        if df is None or df.empty or 'close' not in df.columns or len(df) < period + 1:
+            return 50
+            
+        try:
+            delta = df['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+            
+            # 避免除以零
+            loss = loss.replace(0, 0.0001)
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
+            current_rsi = rsi.iloc[-1]
+            
+            if pd.isna(current_rsi):
+                return 50
+                
+            if current_rsi < 30:
+                return 90  # 超跌
+            elif current_rsi < 40:
+                return 75
+            elif current_rsi > 70:
+                return 20  # 超买
+            elif current_rsi > 60:
+                return 35
+            else:
+                return 60
+        except Exception:
+            return 50
+
+    def _score_kdj(self, df: pd.DataFrame, n: int = 9) -> float:
+        """KDJ评分 (0-100)"""
+        if df is None or df.empty or len(df) < n or not all(col in df.columns for col in ['high', 'low', 'close']):
+            return 50
+            
+        try:
+            low_list = df['low'].rolling(window=n).min()
+            high_list = df['high'].rolling(window=n).max()
+            
+            # 处理最高价和最低价相同的情况
+            diff = high_list - low_list
+            diff = diff.replace(0, 0.0001)
+            
+            rsv = (df['close'] - low_list) / diff * 100
+            
+            k = rsv.ewm(com=2).mean()
+            d = k.ewm(com=2).mean()
+            
+            curr_k = k.iloc[-1]
+            curr_d = d.iloc[-1]
+            
+            if pd.isna(curr_k) or pd.isna(curr_d):
+                return 50
+                
+            if curr_k > curr_d:
+                return 90 if curr_k < 20 else 75
+            else:
+                return 20 if curr_k > 80 else 40
+        except Exception:
+            return 50
     
     def _score_sentiment(self, news: List[dict]) -> float:
         """情绪评分 (0-100)"""

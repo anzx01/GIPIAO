@@ -34,20 +34,38 @@ class NewsFetcher:
             
             stock_code = code.split(".")[0]
             
-            end_date = datetime.now().strftime("%Y%m%d")
-            start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
-            
+            # 限制获取最近的新闻
             df = ak.stock_news_em(symbol=stock_code)
             
             if df is not None and not df.empty:
                 news_list = []
+                # 过滤日期
+                cutoff_date = datetime.now() - timedelta(days=days)
+                
                 for _, row in df.iterrows():
+                    pub_time_str = str(row.get('发布时间', ''))
+                    try:
+                        pub_time = datetime.strptime(pub_time_str, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        try:
+                            pub_time = datetime.strptime(pub_time_str, "%Y-%m-%d")
+                        except ValueError:
+                            pub_time = datetime.now()
+
+                    if pub_time < cutoff_date:
+                        continue
+
+                    title = row.get('新闻标题', '')
+                    sentiment_score = self._calculate_sentiment(title)
+                    
                     news_list.append({
-                        'title': row.get('新闻标题', ''),
+                        'title': title,
                         'url': row.get('新闻链接', ''),
-                        'datetime': str(row.get('发布时间', '')),
+                        'datetime': pub_time_str,
                         'source': row.get('文章来源', ''),
-                        'code': code
+                        'code': code,
+                        'sentiment_score': sentiment_score,
+                        'sentiment': 'positive' if sentiment_score > 0.2 else ('negative' if sentiment_score < -0.2 else 'neutral')
                     })
                 return news_list
             
@@ -56,6 +74,24 @@ class NewsFetcher:
         except Exception as e:
             self.logger.warning(f"fetch_news {code}: {e}")
             return []
+
+    def _calculate_sentiment(self, text: str) -> float:
+        """简单的中文金融新闻情绪计算 (基于关键词)"""
+        if not text:
+            return 0.0
+            
+        pos_words = ['增长', '利好', '合作', '突破', '买入', '推荐', '增持', '盈利', '上涨', '领先', '成功', '创新', '反弹', '走强', '流入', '优于预期']
+        neg_words = ['下降', '利空', '亏损', '风险', '减持', '警示', '下跌', '减少', '下滑', '回落', '压力', '严峻', '走弱', '流出', '低于预期']
+        
+        score = 0.0
+        for word in pos_words:
+            if word in text:
+                score += 0.25
+        for word in neg_words:
+            if word in text:
+                score -= 0.25
+                
+        return max(-1.0, min(1.0, score))
     
     def _generate_mock_news(self, code: str, days: int) -> List[dict]:
         """生成模拟新闻数据"""
