@@ -74,12 +74,16 @@ curl http://127.0.0.1:8002/api/stocks/600519.SH?days=60
 ## ⚠️ 注意事项
 
 ### 关于JWT密钥警告
-启动日志中有JWT密钥验证的警告，但服务仍然正常运行。您的 `.env` 文件中已经设置了安全的密钥：
+启动日志中有 JWT 密钥验证警告时，请在本地 `.env` 文件中设置唯一密钥：
 ```
-JWT_SECRET_KEY=aiqrh-super-secret-key-2024-production-ready-secure-token-change-this-in-production
+JWT_SECRET_KEY=<paste-generated-secret-here>
 ```
 
-这个密钥长度足够（超过32字符），可以正常使用。
+可用下面的命令生成：
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
 
 ### 端口占用问题
 如果将来需要使用8001端口，可以：
@@ -121,7 +125,7 @@ taskkill /PID 3912 /F
 ### 后端配置 (.env)
 ```env
 API_PORT=8002  # 当前使用的端口
-JWT_SECRET_KEY=aiqrh-super-secret-key-2024-production-ready-secure-token-change-this-in-production
+JWT_SECRET_KEY=<paste-generated-secret-here>
 ```
 
 ### 前端配置 (frontend/.env.local)

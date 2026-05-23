@@ -63,10 +63,14 @@ docker-compose up -d mongodb
 
 ### 3.3 配置 JWT 密钥
 
-在 `.env` 文件中设置安全的 JWT 密钥：
+先生成一个唯一密钥，再写入 `.env`：
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
 
 ```env
-JWT_SECRET_KEY=your-super-secret-key-change-this-in-production-123456789
+JWT_SECRET_KEY=<paste-generated-secret-here>
 ```
 
 ### 3.4 配置数据源
@@ -86,6 +90,8 @@ JWT_SECRET_KEY=your-super-secret-key-change-this-in-production-123456789
    ```env
    TUSHARE_TOKEN=your_tushare_token_here
    ```
+
+请不要把 Tushare Token 或任何第三方数据缓存提交到 Git。
 
 #### AkShare（默认，免费）
 

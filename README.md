@@ -76,9 +76,13 @@ docker run -d --name mongodb -p 27017:27017 mongo:latest
 
 #### 3. 配置 JWT 密钥
 
-在 `.env` 文件中设置安全的 JWT 密钥：
+生成一个唯一的 JWT 密钥，并写入 `.env` 文件：
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
 ```env
-JWT_SECRET_KEY=your-super-secret-key-change-in-production
+JWT_SECRET_KEY=<paste-generated-secret-here>
 ```
 
 #### 4. 配置数据源
@@ -303,7 +307,8 @@ MONGO_DB=aiqrh
 MONGO_CONNECTION=mongodb://localhost:27017/aiqrh
 
 # JWT Configuration
-JWT_SECRET_KEY=your-secret-key-change-in-production
+# Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"
+JWT_SECRET_KEY=<paste-generated-secret-here>
 
 # Logging
 LOG_LEVEL=INFO
@@ -445,15 +450,23 @@ pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 
 ## 安全建议
 
-- 修改默认的 JWT 密钥
+- 不要提交 `.env`、API Token、数据库连接串、日志、缓存数据或生成报告
+- 使用 `python -c "import secrets; print(secrets.token_urlsafe(32))"` 生成唯一 JWT 密钥
 - 使用强密码
 - 配置防火墙规则
 - 定期备份数据库
 - 使用 HTTPS（生产环境）
 
+## 合规说明
+
+- 本仓库仅发布源代码和示例配置，不应包含真实行情缓存、新闻缓存、财务数据、日志、报告或 API Token。
+- AkShare、Tushare 等第三方数据源的数据授权、调用频率和用途限制由各数据源服务条款约束；使用者需自行确认其账号和使用场景是否合规。
+- 本项目输出仅用于研究和演示，不构成投资建议、证券推荐或收益承诺。
+- 发布前先执行 `git add -A` 纳入删除项，再运行 `python scripts/compliance_check.py` 做一次本地泄密和不应跟踪文件检查。
+
 ## 许可证
 
-MIT License
+MIT License，详见 [LICENSE](LICENSE)。
 
 ## 贡献
 

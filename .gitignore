@@ -17,25 +17,43 @@ env/
 # IDE
 .vscode/
 .idea/
+.claude/
+.codex/
 *.swp
 *.swo
 
 # Environment
 .env
 .env.local
+.env.*
+!.env.example
+!frontend/.env.example
 
 # Data & Logs
 data/
+api/data/
 logs/
+api/logs/
 reports/
 *.parquet
 *.db
+*.sqlite
+*.sqlite3
+*.csv
 
 # Node
 node_modules/
 .next/
 dist/
 build/
+*.tsbuildinfo
+
+# Local AI/workflow helper packs
+frontend-design/
+landing-page-guide-v2/
+
+# Local scratch files
+m
 
 # OS
 .DS_Store

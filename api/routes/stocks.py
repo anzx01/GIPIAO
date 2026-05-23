@@ -361,5 +361,6 @@ async def _get_stock_name(request: Request, code: str) -> str:
         "600000.SH": "浦发银行",
         "601398.SH": "工商银行",
         "601939.SH": "建设银行",
+        "603178.SH": "圣龙股份",
     }
     return names.get(code, code)

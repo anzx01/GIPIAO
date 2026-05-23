@@ -37,7 +37,18 @@ class JWTConfig(BaseModel):
 
     def validate_secret_key(self):
         """验证JWT密钥是否安全"""
-        if self.secret_key == "your-secret-key-change-in-production":
+        insecure_markers = (
+            "your-secret-key",
+            "change-in-production",
+            "change-this",
+            "change_me",
+            "changeme",
+            "placeholder",
+            "example",
+            "production-ready-secure-token",
+        )
+        normalized_secret = self.secret_key.lower()
+        if any(marker in normalized_secret for marker in insecure_markers):
             raise ValueError(
                 "检测到不安全的JWT密钥！\n"
                 "请在.env文件中设置JWT_SECRET_KEY为一个强密钥。\n"
