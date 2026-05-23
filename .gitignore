@@ -52,6 +52,19 @@ build/
 frontend-design/
 landing-page-guide-v2/
 
+# AI助手内部记忆文件
+mem.md
+
+# 会话过程文档（本地调试记录，不适合公开）
+BACKEND_STARTED.md
+CODE_REVIEW_FIXES.md
+ISSUE_RESOLVED.md
+STOCK_QUERY_FIX.md
+SUCCESS.md
+
+# 未使用的本地二进制文件
+image.png
+
 # Local scratch files
 m
 
