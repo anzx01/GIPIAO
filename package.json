@@ -1,0 +1,11 @@
+{
+  "name": "ai-quant-research-hub",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --dir frontend dev",
+    "frontend:dev": "pnpm --dir frontend dev",
+    "frontend:build": "pnpm --dir frontend build",
+    "frontend:start": "pnpm --dir frontend start",
+    "frontend:lint": "pnpm --dir frontend lint"
+  }
+}

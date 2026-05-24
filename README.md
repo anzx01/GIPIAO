@@ -1,12 +1,12 @@
 # AI Quant Research Hub (AIQRH)
 
-> AI 驱动股票量化研究平台 - 面向投资顾问或机构用户，提供 AI 驱动的股票量化分析、策略评分、回测模拟及可视化报告。
+AI 驱动股票量化研究平台 - 面向投资顾问或机构用户，提供 AI 驱动的股票量化分析、策略评分、回测模拟及可视化报告。
+
+![1779608140203](image/README/1779608140203.png)
 
 ## 功能特性
 
 ### 核心功能
-
-![alt text](https://file+.vscode-resource.vscode-cdn.net/g%3A/myaist/gupiao/image.png)
 
 - 📊 **股票数据抓取与存储** - 支持多数据源（AkShare、Tushare）
 - 🤖 **AI 驱动的股票评分系统** - 因子模型、技术指标、财务指标综合评分
