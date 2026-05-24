@@ -113,26 +113,32 @@ JWT_SECRET_KEY=<paste-generated-secret-here>
 
 ### 启动服务
 
-#### PowerShell
+#### Windows 一键启动（推荐）
+
+双击项目根目录的 `start-dev.bat`，或在 CMD / PowerShell 中运行：
+
+```cmd
+cd /d g:\myaist\gupiao
+start-dev.bat
+```
+
+脚本会自动检查 Python 和 pnpm、补齐 `.env` / `frontend\.env.local`、首次运行时安装前端依赖，并分别启动后端和前端服务。
+
+#### 手动启动
 
 ```powershell
 # 终端 1 - 启动后端
 cd g:\myaist\gupiao
-python -m uvicorn api.main:app --reload --port 8001
+python -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8001
 
-# 终端 2 - 启动前端
-cd g:\myaist\gupiao\frontend
+# 终端 2 - 启动前端（根目录已配置代理脚本）
+cd g:\myaist\gupiao
 pnpm dev
 ```
 
-#### CMD / Bash
+也可以直接进入前端目录启动：
 
-```bash
-# 终端 1 - 启动后端
-cd g:\myaist\gupiao
-python -m uvicorn api.main:app --reload --port 8001
-
-# 终端 2 - 启动前端
+```powershell
 cd g:\myaist\gupiao\frontend
 pnpm dev
 ```
@@ -335,7 +341,7 @@ DATA_DIR=data
 ### 前端
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:8001
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8001
 ```
 
 ## 项目结构
@@ -346,6 +352,8 @@ gupiao/
 ├── config.yaml          # 配置文件
 ├── .env                 # 环境变量
 ├── requirements.txt     # Python 依赖
+├── package.json         # 根目录前端启动脚本
+├── start-dev.bat        # Windows 一键开发启动脚本
 ├── Dockerfile           # Docker 配置
 ├── docker-compose.yml   # 服务编排
 ├── SETUP.md            # 安装配置指南
@@ -455,6 +463,8 @@ python -m uvicorn api.main:app --reload --port 8002
 # 前端使用其他端口
 pnpm dev -- -p 3001
 ```
+
+如果后端端口改为 8002，需要同步修改 `frontend\.env.local` 中的 `NEXT_PUBLIC_API_URL`。
 
 ### 依赖安装失败
 
