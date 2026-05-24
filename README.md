@@ -2,11 +2,12 @@
 
 > AI 驱动股票量化研究平台 - 面向投资顾问或机构用户，提供 AI 驱动的股票量化分析、策略评分、回测模拟及可视化报告。
 
-![alt text](image.png)
-
 ## 功能特性
 
 ### 核心功能
+
+![alt text](https://file+.vscode-resource.vscode-cdn.net/g%3A/myaist/gupiao/image.png)
+
 - 📊 **股票数据抓取与存储** - 支持多数据源（AkShare、Tushare）
 - 🤖 **AI 驱动的股票评分系统** - 因子模型、技术指标、财务指标综合评分
 - 📈 **回测引擎与风险指标分析** - 最大回撤、夏普比率、波动率等
@@ -15,6 +16,7 @@
 - 🖥️ **Web Dashboard 可视化** - 现代化的前端界面
 
 ### 前端模块
+
 - 📊 **仪表盘** - 市场概览、AI 评分 TOP 10、风险监控
 - 📈 **股票分析** - 股票详情、价格走势、技术指标
 - 💼 **组合管理** - 持仓管理、收益分析、行业配置
@@ -33,12 +35,14 @@
 ### 安装依赖
 
 #### 后端依赖
+
 ```bash
 cd g:\myaist\gupiao
 pip install -r requirements.txt
 ```
 
 #### 前端依赖
+
 ```bash
 cd g:\myaist\gupiao\frontend
 pnpm install
@@ -56,6 +60,7 @@ copy .env.example .env
 #### 2. 配置 MongoDB（可选）
 
 **方式一：使用本地 MongoDB**
+
 ```bash
 # 下载并安装 MongoDB
 # https://www.mongodb.com/try/download/community
@@ -65,11 +70,13 @@ net start MongoDB
 ```
 
 **方式二：使用 Docker**
+
 ```bash
 docker run -d --name mongodb -p 27017:27017 mongo:latest
 ```
 
 **方式三：使用 MongoDB Atlas（云端）**
+
 1. 注册账号：https://www.mongodb.com/cloud/atlas
 2. 创建免费集群
 3. 获取连接字符串，更新 `.env` 文件
@@ -77,6 +84,7 @@ docker run -d --name mongodb -p 27017:27017 mongo:latest
 #### 3. 配置 JWT 密钥
 
 生成一个唯一的 JWT 密钥，并写入 `.env` 文件：
+
 ```bash
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
@@ -90,6 +98,7 @@ JWT_SECRET_KEY=<paste-generated-secret-here>
 项目默认使用 **AkShare**（免费，无需 API Key），如需使用其他数据源：
 
 **Tushare（推荐用于生产环境）**
+
 1. 注册账号：https://tushare.pro/register
 2. 获取 API Token
 3. 更新 `config.yaml`：
@@ -173,65 +182,66 @@ pnpm start
 
 ### 认证
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | /api/auth/login | 用户登录 |
-| POST | /api/auth/register | 用户注册 |
-| GET | /api/auth/me | 获取当前用户 |
+| 方法 | 路径               | 说明         |
+| ---- | ------------------ | ------------ |
+| POST | /api/auth/login    | 用户登录     |
+| POST | /api/auth/register | 用户注册     |
+| GET  | /api/auth/me       | 获取当前用户 |
 
 ### 股票
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | /api/stocks/list | 股票列表 |
-| GET | /api/stocks/scores | AI 评分 |
-| GET | /api/stocks/{code} | 股票详情 |
-| GET | /api/stocks/{code}/price | 价格数据 |
-| GET | /api/stocks/{code}/indicators | 技术指标 |
+| 方法 | 路径                          | 说明     |
+| ---- | ----------------------------- | -------- |
+| GET  | /api/stocks/list              | 股票列表 |
+| GET  | /api/stocks/scores            | AI 评分  |
+| GET  | /api/stocks/{code}            | 股票详情 |
+| GET  | /api/stocks/{code}/price      | 价格数据 |
+| GET  | /api/stocks/{code}/indicators | 技术指标 |
 
 ### 市场
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | /api/market/summary | 市场概览 |
-| GET | /api/market/indices | 指数行情 |
-| GET | /api/market/industry/heat | 行业热度 |
-| GET | /api/market/sector/performance | 板块表现 |
+| 方法 | 路径                           | 说明     |
+| ---- | ------------------------------ | -------- |
+| GET  | /api/market/summary            | 市场概览 |
+| GET  | /api/market/indices            | 指数行情 |
+| GET  | /api/market/industry/heat      | 行业热度 |
+| GET  | /api/market/sector/performance | 板块表现 |
 
 ### 组合
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | /api/portfolio/list | 组合列表 |
-| GET | /api/portfolio/{id} | 组合详情 |
-| POST | /api/portfolio | 创建组合 |
-| PUT | /api/portfolio/{id} | 更新组合 |
-| DELETE | /api/portfolio/{id} | 删除组合 |
-| GET | /api/portfolio/{id}/performance | 组合绩效 |
+| 方法   | 路径                            | 说明     |
+| ------ | ------------------------------- | -------- |
+| GET    | /api/portfolio/list             | 组合列表 |
+| GET    | /api/portfolio/{id}             | 组合详情 |
+| POST   | /api/portfolio                  | 创建组合 |
+| PUT    | /api/portfolio/{id}             | 更新组合 |
+| DELETE | /api/portfolio/{id}             | 删除组合 |
+| GET    | /api/portfolio/{id}/performance | 组合绩效 |
 
 ### 回测
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | /api/backtest/run | 运行回测 |
-| GET | /api/backtest/history | 回测历史 |
+| 方法 | 路径                  | 说明     |
+| ---- | --------------------- | -------- |
+| POST | /api/backtest/run     | 运行回测 |
+| GET  | /api/backtest/history | 回测历史 |
 | POST | /api/backtest/compare | 比较策略 |
 
 ### 报告
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | /api/reports/list | 报告列表 |
-| GET | /api/reports/download/{id} | 下载报告 |
-| POST | /api/reports/generate/daily | 生成日报 |
-| POST | /api/reports/generate/weekly | 生成周报 |
-| DELETE | /api/reports/{id} | 删除报告 |
+| 方法   | 路径                         | 说明     |
+| ------ | ---------------------------- | -------- |
+| GET    | /api/reports/list            | 报告列表 |
+| GET    | /api/reports/download/{id}   | 下载报告 |
+| POST   | /api/reports/generate/daily  | 生成日报 |
+| POST   | /api/reports/generate/weekly | 生成周报 |
+| DELETE | /api/reports/{id}            | 删除报告 |
 
 ## 配置说明
 
 编辑 `config.yaml` 自定义：
 
 ### 股票池配置
+
 ```yaml
 stock_pool:
   indices:
@@ -243,6 +253,7 @@ stock_pool:
 ```
 
 ### 数据源配置
+
 ```yaml
 data_source:
   primary: "akshare"  # akshare / tushare
@@ -251,6 +262,7 @@ data_source:
 ```
 
 ### AI 模型配置
+
 ```yaml
 ai_model:
   scoring_method: "factor"  # factor / ai / hybrid
@@ -262,6 +274,7 @@ ai_model:
 ```
 
 ### 风控配置
+
 ```yaml
 risk:
   backtest_period_days: 252
@@ -270,6 +283,7 @@ risk:
 ```
 
 ### 报告配置
+
 ```yaml
 report:
   output_format: "pdf"  # pdf / html / dashboard
@@ -282,6 +296,7 @@ report:
 ```
 
 ### 调度配置
+
 ```yaml
 scheduler:
   enabled: true
@@ -404,17 +419,17 @@ pytest tests/test_core.py -v
 
 ## 技术栈
 
-| 模块 | 技术 |
-|------|------|
-| 后端 | Python 3.10+, FastAPI, Uvicorn |
-| 数据库 | MongoDB, PyMongo |
-| 认证 | JWT, bcrypt |
-| 前端 | Next.js 14, React 18, TypeScript |
-| 图表 | Recharts |
-| 样式 | Tailwind CSS |
-| 容器 | Docker, Docker Compose |
-| 数据分析 | Pandas, NumPy, SciPy |
-| 机器学习 | Scikit-learn |
+| 模块     | 技术                             |
+| -------- | -------------------------------- |
+| 后端     | Python 3.10+, FastAPI, Uvicorn   |
+| 数据库   | MongoDB, PyMongo                 |
+| 认证     | JWT, bcrypt                      |
+| 前端     | Next.js 14, React 18, TypeScript |
+| 图表     | Recharts                         |
+| 样式     | Tailwind CSS                     |
+| 容器     | Docker, Docker Compose           |
+| 数据分析 | Pandas, NumPy, SciPy             |
+| 机器学习 | Scikit-learn                     |
 
 ## 故障排查
 
