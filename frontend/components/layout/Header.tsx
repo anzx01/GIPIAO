@@ -2,12 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Search, User } from "lucide-react";
+import { Bell, LogOut, Search, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/lib/auth-context";
 
 export function Header() {
   const router = useRouter();
+  const { user, logout } = useAuth();
   const [searchCode, setSearchCode] = useState("");
+
+  const handleLogout = () => {
+    logout();
+    router.replace("/login");
+  };
 
   const handleSearch = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && searchCode.trim()) {
@@ -49,12 +56,19 @@ export function Header() {
         
         <div className="flex items-center gap-3 pl-4 border-l border-white/10">
           <div className="text-right">
-            <p className="text-sm font-medium">投资顾问</p>
-            <p className="text-xs text-muted-foreground">Pro Account</p>
+            <p className="text-sm font-medium">{user?.username || "未登录"}</p>
+            <p className="text-xs text-muted-foreground">{user?.is_admin ? "Admin" : "Account"}</p>
           </div>
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center border border-white/10">
             <User className="h-5 w-5 text-primary" />
           </div>
+          <button
+            className="p-2 rounded-xl hover:bg-white/5 transition-colors"
+            onClick={handleLogout}
+            title="退出登录"
+          >
+            <LogOut className="h-4 w-4 text-muted-foreground" />
+          </button>
         </div>
       </div>
     </header>

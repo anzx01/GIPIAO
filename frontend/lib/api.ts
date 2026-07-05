@@ -93,6 +93,10 @@ class ApiClient {
     }
   }
 
+  hasToken() {
+    return !!this.token;
+  }
+
   async login(username: string, password: string) {
     const formData = new URLSearchParams();
     formData.append('username', username);
@@ -107,12 +111,24 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      throw new Error('Login failed');
+      const error = await response.json().catch(() => ({ detail: '登录失败' }));
+      throw new ApiError(error.detail || '登录失败', response.status, 'auth');
     }
 
     const data = await response.json();
     this.setToken(data.access_token);
     return data;
+  }
+
+  async register(username: string, password: string, email?: string) {
+    return this.request<any>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, email: email || undefined }),
+    });
+  }
+
+  async getMe() {
+    return this.request<any>('/api/auth/me');
   }
 
   async logout() {
@@ -156,6 +172,10 @@ class ApiClient {
     return this.request<any>('/api/market/industry/heat');
   }
 
+  async getIndexDetail(code: string) {
+    return this.request<any>(`/api/market/indices/${code}`);
+  }
+
   async getSectorPerformance(days: number = 5) {
     return this.request<any>(`/api/market/sector/performance?days=${days}`);
   }
@@ -166,6 +186,10 @@ class ApiClient {
 
   async getPortfolioDetail(portfolioId: string) {
     return this.request<any>(`/api/portfolio/${portfolioId}`);
+  }
+
+  async getPortfolioPerformance(portfolioId: string, days: number = 30) {
+    return this.request<any>(`/api/portfolio/${portfolioId}/performance?days=${days}`);
   }
 
   async createPortfolio(name: string, stocks: Record<string, number>) {

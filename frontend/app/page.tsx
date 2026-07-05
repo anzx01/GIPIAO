@@ -3,21 +3,17 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
 import {
   TrendingUp,
-  TrendingDown,
   Activity,
   Zap,
   Shield,
-  AlertTriangle,
   ArrowUpRight,
   ArrowDownRight,
   RefreshCw,
   Calendar,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import {
   AreaChart,
   Area,
@@ -26,20 +22,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
 } from "recharts";
-
-const sectorData = [
-  { name: "白酒", value: 25, return: 2.3 },
-  { name: "新能源", value: 20, return: 3.5 },
-  { name: "银行", value: 18, return: 0.8 },
-  { name: "保险", value: 15, return: -0.5 },
-  { name: "电力", value: 12, return: 1.2 },
-  { name: "其他", value: 10, return: 0.3 },
-];
 
 interface MarketData {
   time: string;
@@ -50,14 +33,8 @@ interface StockRanking {
   code: string;
   name: string;
   score: number;
-  change: number;
+  change: number | null;
   industry: string;
-}
-
-interface RiskMetric {
-  name: string;
-  value: number;
-  status: string;
 }
 
 interface MarketSummary {
@@ -68,125 +45,70 @@ interface MarketSummary {
 }
 
 export default function DashboardPage() {
-  console.log('=== DashboardPage component loaded ===');
-  const router = useRouter();
-  const [marketData, setMarketData] = useState<MarketData[]>([]);
+  // 注：/api/market/indices 与 /api/market/indices/{code} 目前依赖的
+  // fetch_index_data / fetch_index_history 在后端尚未实现，调用后必然
+  // 走异常兜底返回固定假数据，因此这里不接这两个接口，市场行情走势图
+  // 如实展示"暂无数据"，仪表盘卡片改用真正有实现的市场概览接口。
+  const [marketData] = useState<MarketData[]>([]);
   const [stockRankings, setStockRankings] = useState<StockRanking[]>([]);
-  const [riskMetrics, setRiskMetrics] = useState<RiskMetric[]>([]);
+  const [scoresTotal, setScoresTotal] = useState<number | null>(null);
   const [marketSummary, setMarketSummary] = useState<MarketSummary | null>(null);
+  const [portfolioReturn, setPortfolioReturn] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    console.log('=== useEffect triggered ===');
-    async function fetchData() {
-      console.log('=== fetchData started ===');
+  async function fetchData() {
+    setLoading(true);
 
-      try {
-        // 设置10秒超时，因为后端分析可能较慢
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Request timeout')), 10000)
-        );
+    const timeout = <T,>(promise: Promise<T>): Promise<T | null> =>
+      Promise.race([
+        promise,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
+      ]).catch((err) => {
+        console.error(err);
+        return null;
+      });
 
-        const [summaryRes, scoresRes, indicesRes] = await Promise.all([
-          Promise.race([api.getMarketSummary(), timeoutPromise]).catch((err) => {
-            console.error('Market summary error:', err);
-            return null;
-          }),
-          Promise.race([api.getStockScores(10), timeoutPromise]).catch((err) => {
-            console.error('Stock scores error:', err);
-            return null;
-          }),
-          Promise.race([api.getMarketIndices(), timeoutPromise]).catch((err) => {
-            console.error('Market indices error:', err);
-            return null;
-          })
-        ]);
+    const [summaryRes, scoresRes, portfolioListRes] = await Promise.all([
+      timeout(api.getMarketSummary()),
+      timeout(api.getStockScores(10)),
+      timeout(api.getPortfolioList()),
+    ]);
 
-        console.log('API Responses:', { summaryRes, scoresRes, indicesRes });
+    // 市场概览卡片：来自 /api/market/summary（真实实现，网络不通时会退化为兜底值）
+    setMarketSummary(summaryRes?.data ?? null);
 
-        if (summaryRes?.data) {
-          setMarketSummary(summaryRes.data);
-        }
-
-        if (scoresRes?.data?.items) {
-          console.log('Stock scores items:', scoresRes.data.items);
-          const stocks = scoresRes.data.items.map((s: any) => ({
-            code: s.code || '',
-            name: s.name || s.code || '',
-            score: Math.round(s.total_score || 0),
-            change: s.pct_change || 0,
-            industry: s.industry || '未知'
-          }));
-          setStockRankings(stocks);
-        } else {
-          console.warn('No stock scores data:', scoresRes);
-          setStockRankings([]);
-        }
-
-        // 处理指数数据用于图表
-        if (indicesRes?.data && Array.isArray(indicesRes.data)) {
-          // 假设返回的是最近的指数点
-          const chartData = indicesRes.data.map((item: any) => ({
-            time: item.time || item.date || '',
-            index: item.close || item.value || 0
-          }));
-          if (chartData.length > 0) {
-            setMarketData(chartData);
-          }
-        } else {
-          // 默认模拟数据
-          setMarketData([
-            { time: "09:30", index: 3250 },
-            { time: "10:00", index: 3262 },
-            { time: "10:30", index: 3258 },
-            { time: "11:00", index: 3275 },
-            { time: "11:30", index: 3280 },
-            { time: "13:00", index: 3278 },
-            { time: "13:30", index: 3290 },
-            { time: "14:00", index: 3302 },
-            { time: "14:30", index: 3295 },
-            { time: "15:00", index: 3310 },
-          ]);
-        }
-
-        // 风险指标模拟（未来可从后端获取）
-        setRiskMetrics([
-          { name: "市场风险", value: 65, status: "中等" },
-          { name: "波动率", value: 18, status: "偏低" },
-          { name: "流动性", value: 82, status: "良好" },
-          { name: "仓位风险", value: 45, status: "安全" },
-        ]);
-
-      } catch (error) {
-        console.error('Failed to fetch data:', error);
-      } finally {
-        setLoading(false);
-      }
+    // AI 推荐股票 + TOP10 表格：来自 /api/stocks/scores
+    if (scoresRes?.data?.items) {
+      setScoresTotal(scoresRes.data.total ?? scoresRes.data.items.length);
+      const stocks: StockRanking[] = scoresRes.data.items.map((s: any) => ({
+        code: s.code || "",
+        name: s.name || s.code || "",
+        score: Math.round(s.total_score || 0),
+        change: typeof s.pct_change === "number" ? s.pct_change : null,
+        industry: s.industry || "未知",
+      }));
+      setStockRankings(stocks);
+    } else {
+      setScoresTotal(null);
+      setStockRankings([]);
     }
 
+    // 组合收益率：来自默认组合的 /api/portfolio/{id}/performance
+    const firstPortfolio = portfolioListRes?.data?.items?.[0];
+    if (firstPortfolio?.id) {
+      const perfRes = await timeout(api.getPortfolioPerformance(firstPortfolio.id));
+      setPortfolioReturn(typeof perfRes?.data?.total_return === "number" ? perfRes.data.total_return : null);
+    } else {
+      setPortfolioReturn(null);
+    }
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
     fetchData();
   }, []);
 
-  const handleRefresh = async () => {
-    setLoading(true);
-    try {
-      const scoresRes = await api.getStockScores(10);
-      if (scoresRes?.data?.items) {
-        const stocks = scoresRes.data.items.map((s: any) => ({
-          code: s.code?.replace('.SH', '').replace('.SZ', '') || '',
-          name: s.name || s.code || '',
-          score: Math.round(s.total_score || 0),
-          change: s.change || 0,
-          industry: s.industry || '未知'
-        }));
-        setStockRankings(stocks);
-      }
-    } catch (error) {
-      console.error('Failed to refresh:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -197,10 +119,10 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-card border border-white/5">
             <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm">{new Date().toISOString().split('T')[0]}</span>
+            <span className="text-sm">{new Date().toISOString().split("T")[0]}</span>
           </div>
-          <Button variant="outline" size="icon" onClick={handleRefresh} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          <Button variant="outline" size="icon" onClick={fetchData} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
         </div>
       </div>
@@ -210,12 +132,22 @@ export default function DashboardPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">上证指数</p>
-                <p className="text-2xl font-display font-bold mt-1">3,310.25</p>
-                <div className="flex items-center gap-1 mt-2">
-                  <ArrowUpRight className="h-4 w-4 text-success" />
-                  <span className="text-sm text-success">+1.25%</span>
-                </div>
+                <p className="text-sm text-muted-foreground">市场涨跌家数占比</p>
+                {marketSummary ? (
+                  <>
+                    <p className="text-2xl font-display font-bold mt-1">{marketSummary.up_rate}%</p>
+                    <div className="flex items-center gap-1 mt-2">
+                      <ArrowUpRight className="h-4 w-4 text-success" />
+                      <span className="text-sm text-success">{marketSummary.up_count}涨</span>
+                      <ArrowDownRight className="h-4 w-4 text-danger ml-2" />
+                      <span className="text-sm text-danger">{marketSummary.down_count}跌</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-2xl font-display font-bold mt-1 text-muted-foreground">
+                    {loading ? "加载中..." : "暂无"}
+                  </p>
+                )}
               </div>
               <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Activity className="h-6 w-6 text-primary" />
@@ -229,11 +161,18 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">AI 推荐股票</p>
-                <p className="text-2xl font-display font-bold mt-1">8</p>
-                <div className="flex items-center gap-1 mt-2">
-                  <span className="text-sm text-muted-foreground">较昨日</span>
-                  <span className="text-sm text-success">+3</span>
-                </div>
+                {scoresTotal !== null ? (
+                  <>
+                    <p className="text-2xl font-display font-bold mt-1">{stockRankings.length}</p>
+                    <div className="flex items-center gap-1 mt-2">
+                      <span className="text-sm text-muted-foreground">共 {scoresTotal} 只股票有评分</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-2xl font-display font-bold mt-1 text-muted-foreground">
+                    {loading ? "加载中..." : "暂无"}
+                  </p>
+                )}
               </div>
               <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center">
                 <Zap className="h-6 w-6 text-success" />
@@ -247,11 +186,21 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">组合收益率</p>
-                <p className="text-2xl font-display font-bold mt-1">+12.8%</p>
-                <div className="flex items-center gap-1 mt-2">
-                  <ArrowUpRight className="h-4 w-4 text-success" />
-                  <span className="text-sm text-success">+2.3%</span>
-                </div>
+                {portfolioReturn !== null ? (
+                  <>
+                    <p className={`text-2xl font-display font-bold mt-1 ${portfolioReturn >= 0 ? "" : "text-danger"}`}>
+                      {portfolioReturn >= 0 ? "+" : ""}
+                      {portfolioReturn}%
+                    </p>
+                    <div className="flex items-center gap-1 mt-2">
+                      <span className="text-sm text-muted-foreground">默认组合</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-2xl font-display font-bold mt-1 text-muted-foreground">
+                    {loading ? "加载中..." : "暂无"}
+                  </p>
+                )}
               </div>
               <div className="h-12 w-12 rounded-xl bg-chart-2/10 flex items-center justify-center">
                 <TrendingUp className="h-6 w-6 text-chart-2" />
@@ -265,10 +214,9 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">风险等级</p>
-                <p className="text-2xl font-display font-bold mt-1">中等</p>
+                <p className="text-2xl font-display font-bold mt-1 text-muted-foreground">暂无</p>
                 <div className="flex items-center gap-1 mt-2">
-                  <Shield className="h-4 w-4 text-warning" />
-                  <span className="text-sm text-warning">夏普比率 1.85</span>
+                  <span className="text-sm text-muted-foreground">风险模型未接入</span>
                 </div>
               </div>
               <div className="h-12 w-12 rounded-xl bg-warning/10 flex items-center justify-center">
@@ -283,12 +231,6 @@ export default function DashboardPage() {
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-lg">市场行情走势</CardTitle>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm">1日</Button>
-              <Button variant="ghost" size="sm">1周</Button>
-              <Button variant="default" size="sm">1月</Button>
-              <Button variant="ghost" size="sm">1年</Button>
-            </div>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
@@ -303,12 +245,12 @@ export default function DashboardPage() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
                     <XAxis dataKey="time" stroke="hsl(215, 20%, 65%)" fontSize={12} />
-                    <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} domain={['dataMin - 20', 'dataMax + 20']} />
+                    <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} domain={["dataMin - 20", "dataMax + 20"]} />
                     <Tooltip
                       contentStyle={{
-                        backgroundColor: 'hsl(222, 47%, 8%)',
-                        border: '1px solid hsl(217, 33%, 17%)',
-                        borderRadius: '12px',
+                        backgroundColor: "hsl(222, 47%, 8%)",
+                        border: "1px solid hsl(217, 33%, 17%)",
+                        borderRadius: "12px",
                       }}
                     />
                     <Area
@@ -323,7 +265,7 @@ export default function DashboardPage() {
                 </ResponsiveContainer>
               ) : (
                 <div className="h-full flex items-center justify-center text-muted-foreground">
-                  {loading ? '加载中...' : '暂无数据'}
+                  {loading ? "加载中..." : "暂无数据"}
                 </div>
               )}
             </div>
@@ -334,36 +276,12 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="text-lg">风险监控</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {riskMetrics.map((metric) => (
-              <div key={metric.name} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">{metric.name}</span>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    metric.status === '安全' || metric.status === '良好' || metric.status === '偏低'
-                      ? 'bg-success/10 text-success'
-                      : metric.status === '中等'
-                      ? 'bg-warning/10 text-warning'
-                      : 'bg-danger/10 text-danger'
-                  }`}>
-                    {metric.status}
-                  </span>
-                </div>
-                <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${metric.value}%`,
-                      background: metric.value > 70 
-                        ? 'hsl(0, 84%, 60%)' 
-                        : metric.value > 40 
-                        ? 'hsl(38, 92%, 50%)'
-                        : 'hsl(160, 84%, 39%)'
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
+          <CardContent>
+            <div className="h-[240px] flex items-center justify-center text-center text-muted-foreground text-sm">
+              暂无风险监控数据
+              <br />
+              （风险模型尚未接入）
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -372,7 +290,6 @@ export default function DashboardPage() {
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">AI 推荐股票 TOP 10</CardTitle>
-            <Button variant="outline" size="sm">查看更多</Button>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -392,9 +309,11 @@ export default function DashboardPage() {
                     stockRankings.map((stock, index) => (
                       <tr key={stock.code} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                         <td className="py-3 px-4">
-                          <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium ${
-                            index < 3 ? 'bg-primary/10 text-primary' : 'bg-white/5 text-muted-foreground'
-                          }`}>
+                          <span
+                            className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium ${
+                              index < 3 ? "bg-primary/10 text-primary" : "bg-white/5 text-muted-foreground"
+                            }`}
+                          >
                             {index + 1}
                           </span>
                         </td>
@@ -410,11 +329,12 @@ export default function DashboardPage() {
                                 className="h-full rounded-full"
                                 style={{
                                   width: `${stock.score}%`,
-                                  background: stock.score >= 80
-                                    ? 'hsl(160, 84%, 39%)'
-                                    : stock.score >= 60
-                                    ? 'hsl(38, 92%, 50%)'
-                                    : 'hsl(0, 84%, 60%)'
+                                  background:
+                                    stock.score >= 80
+                                      ? "hsl(160, 84%, 39%)"
+                                      : stock.score >= 60
+                                      ? "hsl(38, 92%, 50%)"
+                                      : "hsl(0, 84%, 60%)",
                                 }}
                               />
                             </div>
@@ -422,23 +342,28 @@ export default function DashboardPage() {
                           </div>
                         </td>
                         <td className="py-3 px-4">
-                          <div className="flex items-center gap-1">
-                            {stock.change > 0 ? (
-                              <ArrowUpRight className="h-4 w-4 text-success" />
-                            ) : (
-                              <ArrowDownRight className="h-4 w-4 text-danger" />
-                            )}
-                            <span className={stock.change > 0 ? "text-success" : "text-danger"}>
-                              {stock.change > 0 ? "+" : ""}{stock.change}%
-                            </span>
-                          </div>
+                          {stock.change === null ? (
+                            <span className="text-muted-foreground">--</span>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              {stock.change > 0 ? (
+                                <ArrowUpRight className="h-4 w-4 text-success" />
+                              ) : (
+                                <ArrowDownRight className="h-4 w-4 text-danger" />
+                              )}
+                              <span className={stock.change > 0 ? "text-success" : "text-danger"}>
+                                {stock.change > 0 ? "+" : ""}
+                                {stock.change}%
+                              </span>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
                       <td colSpan={6} className="py-8 text-center text-muted-foreground">
-                        {loading ? '加载中...' : '暂无股票数据'}
+                        {loading ? "加载中..." : "暂无股票数据"}
                       </td>
                     </tr>
                   )}
@@ -453,28 +378,10 @@ export default function DashboardPage() {
             <CardTitle className="text-lg">行业分布</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[280px]">
-              {sectorData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={sectorData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" horizontal={false} />
-                    <XAxis type="number" stroke="hsl(215, 20%, 65%)" fontSize={12} />
-                    <YAxis dataKey="name" type="category" stroke="hsl(215, 20%, 65%)" fontSize={12} width={50} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(222, 47%, 8%)',
-                        border: '1px solid hsl(217, 33%, 17%)',
-                        borderRadius: '12px',
-                      }}
-                    />
-                    <Bar dataKey="value" fill="hsl(199, 89%, 48%)" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-muted-foreground">
-                  {loading ? '加载中...' : '暂无数据'}
-                </div>
-              )}
+            <div className="h-[280px] flex items-center justify-center text-center text-muted-foreground text-sm">
+              暂无行业分布数据
+              <br />
+              （尚无持仓行业归类接口）
             </div>
           </CardContent>
         </Card>
