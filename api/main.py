@@ -6,7 +6,7 @@ AI Quant Research Hub - FastAPI Application
 import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import Request, status
+from fastapi import Depends, Request, status
 from fastapi.responses import JSONResponse
 from loguru import logger
 
@@ -18,6 +18,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from api.routes import stocks, portfolio, backtest, reports, market
 from api.routes.auth import router as auth_router
+from api.auth import get_current_active_user
 from core.engine import QuantEngine
 from api.config import get_settings
 from api.logger import api_logger, log_exception
@@ -112,12 +113,14 @@ app.add_middleware(
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-app.include_router(auth_router)
-app.include_router(stocks.router, prefix="/api/stocks", tags=["股票"])
-app.include_router(portfolio.router, prefix="/api/portfolio", tags=["组合"])
-app.include_router(backtest.router, prefix="/api/backtest", tags=["回测"])
-app.include_router(reports.router, prefix="/api/reports", tags=["报告"])
-app.include_router(market.router, prefix="/api/market", tags=["市场"])
+auth_required = [Depends(get_current_active_user)]
+
+app.include_router(auth_router, prefix="/api")
+app.include_router(stocks.router, prefix="/api/stocks", tags=["股票"], dependencies=auth_required)
+app.include_router(portfolio.router, prefix="/api/portfolio", tags=["组合"], dependencies=auth_required)
+app.include_router(backtest.router, prefix="/api/backtest", tags=["回测"], dependencies=auth_required)
+app.include_router(reports.router, prefix="/api/reports", tags=["报告"], dependencies=auth_required)
+app.include_router(market.router, prefix="/api/market", tags=["市场"], dependencies=auth_required)
 
 
 @app.get("/")
@@ -165,14 +168,14 @@ async def health_check():
     return {"status": "healthy"}
 
 
-@app.get("/cache/stats")
+@app.get("/cache/stats", dependencies=auth_required)
 async def get_cache_stats():
     """获取缓存统计信息"""
     from api.cache import get_cache_stats
     return get_cache_stats()
 
 
-@app.post("/cache/clear")
+@app.post("/cache/clear", dependencies=auth_required)
 async def clear_cache_endpoint(pattern: str = ""):
     """清除缓存"""
     from api.cache import clear_cache

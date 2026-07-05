@@ -21,6 +21,7 @@ from api.auth import (
 )
 from core.database import get_db
 from core.models import User as UserModel
+from api.validators import validate_username, validate_email, validate_password
 
 
 router = APIRouter(prefix="/auth", tags=["认证"])
@@ -58,30 +59,34 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserCreate):
+    username = validate_username(user_data.username)
+    email = validate_email(user_data.email)
+    password = validate_password(user_data.password)
+
     db = get_db()
-    
-    existing_user = db.users.find_one({"username": user_data.username})
+
+    existing_user = db.users.find_one({"username": username})
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered"
         )
     
-    hashed_password = get_password_hash(user_data.password)
-    
+    hashed_password = get_password_hash(password)
+
     new_user = UserModel(
-        username=user_data.username,
-        email=user_data.email,
+        username=username,
+        email=email,
         hashed_password=hashed_password,
         is_active=True,
         is_admin=False
     )
-    
+
     db.users.insert_one(new_user.model_dump())
-    
+
     return UserResponse(
-        username=user_data.username,
-        email=user_data.email,
+        username=username,
+        email=email,
         is_active=True,
         is_admin=False
     )

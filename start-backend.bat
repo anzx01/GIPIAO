@@ -1,42 +1,42 @@
 @echo off
 echo ========================================
-echo   AI Quant Research Hub - 后端启动脚本
+echo   AI Quant Research Hub - Backend Startup
 echo ========================================
 echo.
 
 cd /d "%~dp0"
 
-echo [1/4] 检查Python环境...
+echo [1/4] Checking Python environment...
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo [错误] 未找到Python，请先安装Python 3.10+
+    echo [ERROR] Python not found. Please install Python 3.10+ first.
     pause
     exit /b 1
 )
 python --version
 
 echo.
-echo [2/4] 检查依赖包...
+echo [2/4] Checking dependencies...
 python -c "import fastapi" >nul 2>&1
 if errorlevel 1 (
-    echo [警告] FastAPI未安装，正在安装依赖...
+    echo [WARN] FastAPI not installed, installing dependencies...
     pip install -r requirements.txt
 )
 
 echo.
-echo [3/4] 检查配置文件...
+echo [3/4] Checking configuration file...
 if not exist ".env" (
-    echo [警告] .env文件不存在，从.env.example复制...
+    echo [WARN] .env file not found, copying from .env.example...
     copy .env.example .env
 )
 
 echo.
-echo [4/4] 启动后端服务...
-echo 服务地址: http://127.0.0.1:8001
-echo API文档: http://127.0.0.1:8001/docs
-echo 健康检查: http://127.0.0.1:8001/health
+echo [4/4] Starting backend service...
+echo Service URL: http://127.0.0.1:8001
+echo API docs: http://127.0.0.1:8001/docs
+echo Health check: http://127.0.0.1:8001/health
 echo.
-echo 按 Ctrl+C 停止服务
+echo Press Ctrl+C to stop the service
 echo ========================================
 echo.
 

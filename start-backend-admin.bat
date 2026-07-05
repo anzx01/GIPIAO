@@ -1,17 +1,17 @@
 @echo off
 echo ========================================
-echo   请求管理员权限启动后端服务
+echo   Requesting admin rights to start backend
 echo ========================================
 echo.
 
-:: 检查管理员权限
+:: Check admin rights
 net session >nul 2>&1
 if %errorLevel% == 0 (
-    echo [OK] 已获得管理员权限
+    echo [OK] Already running with admin rights
     goto :start
 ) else (
-    echo [警告] 需要管理员权限
-    echo 正在请求管理员权限...
+    echo [WARN] Admin rights required
+    echo Requesting admin rights...
     powershell -Command "Start-Process '%~f0' -Verb RunAs"
     exit /b
 )
@@ -20,19 +20,19 @@ if %errorLevel% == 0 (
 cd /d "%~dp0"
 
 echo.
-echo [1/3] 检查Python环境...
+echo [1/3] Checking Python environment...
 C:\Python314\python.exe --version
 if errorlevel 1 (
-    echo [错误] Python未找到
+    echo [ERROR] Python not found
     pause
     exit /b 1
 )
 
 echo.
-echo [2/3] 检查端口8001...
+echo [2/3] Checking port 8001...
 netstat -ano | findstr :8001 >nul
 if not errorlevel 1 (
-    echo [警告] 端口8001被占用，正在清理...
+    echo [WARN] Port 8001 is in use, cleaning up...
     for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8001') do (
         taskkill /F /PID %%a >nul 2>&1
     )
@@ -40,11 +40,11 @@ if not errorlevel 1 (
 )
 
 echo.
-echo [3/3] 启动后端服务...
-echo 服务地址: http://127.0.0.1:8001
-echo 健康检查: http://127.0.0.1:8001/health
+echo [3/3] Starting backend service...
+echo Service URL: http://127.0.0.1:8001
+echo Health check: http://127.0.0.1:8001/health
 echo.
-echo 按 Ctrl+C 停止服务
+echo Press Ctrl+C to stop the service
 echo ========================================
 echo.
 

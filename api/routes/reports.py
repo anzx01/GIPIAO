@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from datetime import datetime
 import os
 from api.pdf_generator import PDFGenerator
+from api.validators import validate_report_id
 
 
 router = APIRouter()
@@ -71,8 +72,8 @@ async def get_report_list(
 
 @router.get("/download/{report_id}")
 async def download_report(request: Request, report_id: str):
-    report_path = os.path.join("reports", report_id)
-    
+    report_path = validate_report_id(report_id)
+
     if not os.path.exists(report_path):
         raise HTTPException(status_code=404, detail="报告不存在")
     
@@ -94,8 +95,8 @@ async def download_report(request: Request, report_id: str):
 
 @router.get("/{report_id}")
 async def get_report_detail(request: Request, report_id: str):
-    report_path = os.path.join("reports", report_id)
-    
+    report_path = validate_report_id(report_id)
+
     if not os.path.exists(report_path):
         raise HTTPException(status_code=404, detail="报告不存在")
     
@@ -220,8 +221,8 @@ async def generate_weekly_report(request: Request):
 
 @router.delete("/{report_id}")
 async def delete_report(request: Request, report_id: str):
-    report_path = os.path.join("reports", report_id)
-    
+    report_path = validate_report_id(report_id)
+
     if not os.path.exists(report_path):
         raise HTTPException(status_code=404, detail="报告不存在")
     

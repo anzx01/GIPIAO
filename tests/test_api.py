@@ -22,6 +22,24 @@ def mock_engine():
     return mock
 
 
+@pytest.fixture(autouse=True)
+def _override_auth():
+    """业务路由现在要求登录，测试里用假用户覆盖鉴权依赖"""
+    from api.main import app
+    from api.auth import get_current_active_user
+    from core.models import User
+
+    fake_user = User(
+        username="test_user",
+        hashed_password="x",
+        is_active=True,
+        is_admin=False
+    )
+    app.dependency_overrides[get_current_active_user] = lambda: fake_user
+    yield
+    app.dependency_overrides.pop(get_current_active_user, None)
+
+
 class TestHealthEndpoint:
     """健康检查接口测试"""
     

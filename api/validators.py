@@ -2,6 +2,7 @@
 输入验证工具
 """
 
+import os
 import re
 from typing import Optional
 from fastapi import HTTPException, status
@@ -288,6 +289,38 @@ def validate_password(password: str) -> str:
         )
 
     return password
+
+
+def validate_report_id(report_id: str, base_dir: str = "reports") -> str:
+    """
+    校验报告文件路径，防止路径穿越攻击
+
+    Args:
+        report_id: 报告文件名
+        base_dir: 报告所在的基础目录
+
+    Returns:
+        str: 校验后的安全文件路径（绝对路径）
+
+    Raises:
+        HTTPException: 如果路径尝试逃逸出基础目录
+    """
+    if not report_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="报告ID不能为空"
+        )
+
+    base_dir_abs = os.path.abspath(base_dir)
+    report_path_abs = os.path.abspath(os.path.join(base_dir_abs, report_id))
+
+    if os.path.commonpath([base_dir_abs, report_path_abs]) != base_dir_abs:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"无效的报告ID: {report_id}"
+        )
+
+    return report_path_abs
 
 
 def sanitize_string(input_str: str, max_length: int = 1000) -> str:
