@@ -6,6 +6,8 @@ from typing import Optional
 import pandas as pd
 import loguru
 
+from ..text_utils import repair_mojibake_text
+
 logger = loguru.logger
 
 PRICE_COLUMN_MAP = {
@@ -98,8 +100,8 @@ def fetch_stock_info_map() -> dict:
     df = ak.stock_zh_a_spot_em()
     mapping = {}
     for _, row in df.iterrows():
-        code = row['代码']
-        name = row['名称']
+        code = str(row['代码']).zfill(6)
+        name = repair_mojibake_text(str(row['名称']))
         if code.startswith('6'):
             mapping[f"{code}.SH"] = name
         elif code.startswith('0') or code.startswith('3'):

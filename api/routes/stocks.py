@@ -17,9 +17,54 @@ from api.validators import (
     validate_pagination
 )
 from api.cache import cached, clear_cache
+from skills.skill_data.text_utils import repair_mojibake_text
 
 
 router = APIRouter()
+
+
+def _serialize_score(score: dict) -> dict:
+    item = dict(score)
+    for key, value in list(item.items()):
+        if hasattr(value, "item"):
+            item[key] = value.item()
+        elif hasattr(value, "isoformat"):
+            item[key] = value.isoformat()
+    return item
+
+
+def _generate_real_scores(engine, limit: int = 50) -> list[dict]:
+    stock_list = engine._get_stock_list()
+    if not stock_list:
+        return []
+
+    price_data = engine.fetcher.fetch_price_data(stock_list)
+    if not price_data:
+        return []
+
+    for code, df in list(price_data.items()):
+        if df is None or df.empty:
+            price_data.pop(code, None)
+            continue
+        price_data[code] = engine.fetcher.calculate_technical_indicators(df)
+
+    if not price_data:
+        return []
+
+    financial_data = engine.fetcher.fetch_financial_data(list(price_data.keys()))
+    scores_df = engine.scorer.score_stocks(price_data, financial_data, {})
+    if scores_df.empty:
+        return []
+
+    scores = [_serialize_score(row) for row in scores_df.head(limit).to_dict("records")]
+
+    for score in scores:
+        try:
+            engine.storage.save_stock_score(score)
+        except Exception as exc:
+            logger.error(f"Failed to save stock score {score.get('code')}: {exc}")
+
+    return scores
 
 
 class StockInfo(BaseModel):
@@ -102,7 +147,6 @@ async def get_stock_list(
 
 
 @router.get("/scores")
-@cached(ttl=600, key_prefix="stock_scores:")
 async def get_stock_scores(
     request: Request,
     top_n: Optional[int] = Query(10, ge=1, le=50)
@@ -113,16 +157,17 @@ async def get_stock_scores(
         # 先尝试从存储中读取已有的评分数据
         scores = engine.storage.load_latest_scores(limit=50)
 
-        # 如果没有数据，返回提示信息而不是触发耗时的分析
         if not scores:
-            return {
-                "code": 200,
-                "data": {
-                    "items": [],
-                    "total": 0,
-                    "message": "暂无评分数据，后台分析正在进行中，请稍后刷新"
+            scores = _generate_real_scores(engine, limit=50)
+            if not scores:
+                return {
+                    "code": 200,
+                    "data": {
+                        "items": [],
+                        "total": 0,
+                        "message": "暂无真实评分数据，请检查行情数据源或股票池配置"
+                    }
                 }
-            }
 
         # 添加股票名称
         for score in scores:
@@ -151,7 +196,11 @@ async def get_stock_detail(
     code: str,
     days: int = Query(60, ge=1, le=365)
 ):
-    code = validate_stock_code(code)
+    raw_code = code
+    try:
+        code = validate_stock_code(code)
+    except HTTPException:
+        raise HTTPException(status_code=404, detail=f"Stock {raw_code} not found")
     
     engine = request.app.state.engine
     
@@ -347,20 +396,8 @@ async def _get_stock_name(request: Request, code: str) -> str:
             engine.stock_map = {}
             
     if code in engine.stock_map:
-        return engine.stock_map[code]
+        name = repair_mojibake_text(engine.stock_map[code])
+        engine.stock_map[code] = name
+        return name
         
-    # 备选硬编码（常用股票）
-    names = {
-        "600519.SH": "贵州茅台",
-        "000858.SH": "五粮液",
-        "601318.SH": "中国平安",
-        "600036.SH": "招商银行",
-        "000333.SZ": "美的集团",
-        "001314.SZ": "招商积余",
-        "000001.SZ": "平安银行",
-        "600000.SH": "浦发银行",
-        "601398.SH": "工商银行",
-        "601939.SH": "建设银行",
-        "603178.SH": "圣龙股份",
-    }
-    return names.get(code, code)
+    return code

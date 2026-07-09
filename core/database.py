@@ -1,6 +1,8 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import MongoClient
 from typing import Optional
+import os
+
 from api.config import get_settings
 
 
@@ -20,7 +22,13 @@ def get_database_url() -> str:
 
 
 def init_mongodb():
-    db.client = MongoClient(get_database_url())
+    timeout_ms = int(os.getenv("MONGO_SERVER_SELECTION_TIMEOUT_MS", "2000"))
+    db.client = MongoClient(
+        get_database_url(),
+        serverSelectionTimeoutMS=timeout_ms,
+        connectTimeoutMS=timeout_ms,
+        socketTimeoutMS=timeout_ms,
+    )
     return db.client
 
 

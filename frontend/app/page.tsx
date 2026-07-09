@@ -42,67 +42,61 @@ interface MarketSummary {
   up_count: number;
   down_count: number;
   up_rate: number;
+  scope?: "market" | "stock_pool";
 }
 
 export default function DashboardPage() {
-  // 注：/api/market/indices 与 /api/market/indices/{code} 目前依赖的
-  // fetch_index_data / fetch_index_history 在后端尚未实现，调用后必然
-  // 走异常兜底返回固定假数据，因此这里不接这两个接口，市场行情走势图
-  // 如实展示"暂无数据"，仪表盘卡片改用真正有实现的市场概览接口。
+  // 注：/api/market/indices 与 /api/market/indices/{code} 目前没有真实数据源，
+  // 因此这里不接这两个接口，市场行情走势图如实展示"暂无数据"。
   const [marketData] = useState<MarketData[]>([]);
   const [stockRankings, setStockRankings] = useState<StockRanking[]>([]);
   const [scoresTotal, setScoresTotal] = useState<number | null>(null);
   const [marketSummary, setMarketSummary] = useState<MarketSummary | null>(null);
-  const [portfolioReturn, setPortfolioReturn] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [scoresLoading, setScoresLoading] = useState(true);
+  const loading = summaryLoading || scoresLoading;
 
   async function fetchData() {
-    setLoading(true);
+    setSummaryLoading(true);
+    setScoresLoading(true);
 
-    const timeout = <T,>(promise: Promise<T>): Promise<T | null> =>
+    const timeout = <T,>(promise: Promise<T>, ms: number): Promise<T | null> =>
       Promise.race([
         promise,
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
       ]).catch((err) => {
         console.error(err);
         return null;
       });
 
-    const [summaryRes, scoresRes, portfolioListRes] = await Promise.all([
-      timeout(api.getMarketSummary()),
-      timeout(api.getStockScores(10)),
-      timeout(api.getPortfolioList()),
-    ]);
+    const summaryTask = timeout(api.getMarketSummary(), 30000)
+      .then((summaryRes) => {
+        // 市场概览卡片：优先全市场真实快照；上游不可用时后端返回真实股票池摘要。
+        setMarketSummary(summaryRes?.data ?? null);
+      })
+      .finally(() => setSummaryLoading(false));
 
-    // 市场概览卡片：来自 /api/market/summary（真实实现，网络不通时会退化为兜底值）
-    setMarketSummary(summaryRes?.data ?? null);
+    const scoresTask = timeout(api.getStockScores(10), 90000)
+      .then((scoresRes) => {
+        // AI 推荐股票 + TOP10 表格：来自 /api/stocks/scores，空缓存时后端会即时真实计算。
+        if (scoresRes?.data?.items) {
+          setScoresTotal(scoresRes.data.total ?? scoresRes.data.items.length);
+          const stocks: StockRanking[] = scoresRes.data.items.map((s: any) => ({
+            code: s.code || "",
+            name: s.name || s.code || "",
+            score: Math.round(s.total_score || 0),
+            change: typeof s.pct_change === "number" ? s.pct_change : null,
+            industry: s.industry || "未知",
+          }));
+          setStockRankings(stocks);
+        } else {
+          setScoresTotal(null);
+          setStockRankings([]);
+        }
+      })
+      .finally(() => setScoresLoading(false));
 
-    // AI 推荐股票 + TOP10 表格：来自 /api/stocks/scores
-    if (scoresRes?.data?.items) {
-      setScoresTotal(scoresRes.data.total ?? scoresRes.data.items.length);
-      const stocks: StockRanking[] = scoresRes.data.items.map((s: any) => ({
-        code: s.code || "",
-        name: s.name || s.code || "",
-        score: Math.round(s.total_score || 0),
-        change: typeof s.pct_change === "number" ? s.pct_change : null,
-        industry: s.industry || "未知",
-      }));
-      setStockRankings(stocks);
-    } else {
-      setScoresTotal(null);
-      setStockRankings([]);
-    }
-
-    // 组合收益率：来自默认组合的 /api/portfolio/{id}/performance
-    const firstPortfolio = portfolioListRes?.data?.items?.[0];
-    if (firstPortfolio?.id) {
-      const perfRes = await timeout(api.getPortfolioPerformance(firstPortfolio.id));
-      setPortfolioReturn(typeof perfRes?.data?.total_return === "number" ? perfRes.data.total_return : null);
-    } else {
-      setPortfolioReturn(null);
-    }
-
-    setLoading(false);
+    await Promise.all([summaryTask, scoresTask]);
   }
 
   useEffect(() => {
@@ -132,7 +126,9 @@ export default function DashboardPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">市场涨跌家数占比</p>
+                <p className="text-sm text-muted-foreground">
+                  {marketSummary?.scope === "stock_pool" ? "股票池涨跌家数占比" : "市场涨跌家数占比"}
+                </p>
                 {marketSummary ? (
                   <>
                     <p className="text-2xl font-display font-bold mt-1">{marketSummary.up_rate}%</p>
@@ -145,7 +141,7 @@ export default function DashboardPage() {
                   </>
                 ) : (
                   <p className="text-2xl font-display font-bold mt-1 text-muted-foreground">
-                    {loading ? "加载中..." : "暂无"}
+                    {summaryLoading ? "加载中..." : "暂无"}
                   </p>
                 )}
               </div>
@@ -163,14 +159,14 @@ export default function DashboardPage() {
                 <p className="text-sm text-muted-foreground">AI 推荐股票</p>
                 {scoresTotal !== null ? (
                   <>
-                    <p className="text-2xl font-display font-bold mt-1">{stockRankings.length}</p>
+                    <p className="text-2xl font-display font-bold mt-1">{scoresTotal}</p>
                     <div className="flex items-center gap-1 mt-2">
                       <span className="text-sm text-muted-foreground">共 {scoresTotal} 只股票有评分</span>
                     </div>
                   </>
                 ) : (
                   <p className="text-2xl font-display font-bold mt-1 text-muted-foreground">
-                    {loading ? "加载中..." : "暂无"}
+                    {scoresLoading ? "加载中..." : "暂无"}
                   </p>
                 )}
               </div>
@@ -186,21 +182,12 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">组合收益率</p>
-                {portfolioReturn !== null ? (
-                  <>
-                    <p className={`text-2xl font-display font-bold mt-1 ${portfolioReturn >= 0 ? "" : "text-danger"}`}>
-                      {portfolioReturn >= 0 ? "+" : ""}
-                      {portfolioReturn}%
-                    </p>
-                    <div className="flex items-center gap-1 mt-2">
-                      <span className="text-sm text-muted-foreground">默认组合</span>
-                    </div>
-                  </>
-                ) : (
                   <p className="text-2xl font-display font-bold mt-1 text-muted-foreground">
-                    {loading ? "加载中..." : "暂无"}
+                    {summaryLoading ? "加载中..." : "暂无"}
                   </p>
-                )}
+                <div className="flex items-center gap-1 mt-2">
+                  <span className="text-sm text-muted-foreground">组合绩效接口未接入真实计算</span>
+                </div>
               </div>
               <div className="h-12 w-12 rounded-xl bg-chart-2/10 flex items-center justify-center">
                 <TrendingUp className="h-6 w-6 text-chart-2" />
@@ -263,11 +250,11 @@ export default function DashboardPage() {
                     />
                   </AreaChart>
                 </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-muted-foreground">
-                  {loading ? "加载中..." : "暂无数据"}
-                </div>
-              )}
+                ) : (
+                  <div className="h-full flex items-center justify-center text-muted-foreground">
+                    {summaryLoading ? "加载中..." : "暂无数据"}
+                  </div>
+                )}
             </div>
           </CardContent>
         </Card>
@@ -363,7 +350,7 @@ export default function DashboardPage() {
                   ) : (
                     <tr>
                       <td colSpan={6} className="py-8 text-center text-muted-foreground">
-                        {loading ? "加载中..." : "暂无股票数据"}
+                        {scoresLoading ? "加载中..." : "暂无股票数据"}
                       </td>
                     </tr>
                   )}

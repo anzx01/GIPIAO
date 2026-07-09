@@ -129,12 +129,7 @@ async def generate_daily_report(request: Request):
         pdf_payload = data.get("report_payload")
         
         if not pdf_payload:
-            # 回退到基本数据
-            pdf_payload = {
-                "date": datetime.now().strftime("%Y-%m-%d"),
-                "summary": "分析完成，但未生成完整载荷。",
-                "top_stocks": data.get("stock_scores", [])[:10]
-            }
+            raise HTTPException(status_code=503, detail="日报真实数据载荷不可用")
         
         pdf_path = pdf_generator.generate_daily_report(pdf_payload)
         
@@ -162,47 +157,14 @@ async def generate_weekly_report(request: Request):
         
         data = result.get("data", {})
         
-        pdf_data = {
+        pdf_data = data.get("report_payload") or {
             "week": f"{datetime.now().strftime('%Y年第%W周')}",
-            "summary": data.get("summary", "本周市场整体表现良好，科技板块领涨，消费板块相对疲软"),
-            "highlights": [
-                {"title": "上证指数周涨跌", "value": "+3.5%"},
-                {"title": "深证成指周涨跌", "value": "+4.2%"},
-                {"title": "创业板指周涨跌", "value": "+5.8%"},
-                {"title": "周均成交额", "value": "9,200亿"},
-                {"title": "北向资金净流入", "value": "+156亿"},
-                {"title": "涨停数", "value": "358"},
-            ],
-            "market_summary": {
-                "sh_change": "+3.5%",
-                "sz_change": "+4.2%",
-                "cy_change": "+5.8%",
-                "avg_volume": "9,200亿"
-            },
-            "top_stocks": [
-                {"code": "600519.SH", "name": "贵州茅台", "score": 95.5, "weekly_change": 5.2},
-                {"code": "300750.SZ", "name": "宁德时代", "score": 92.3, "weekly_change": 8.5},
-                {"code": "002594.SZ", "name": "比亚迪", "score": 90.8, "weekly_change": 6.8},
-                {"code": "000858.SH", "name": "五粮液", "score": 89.5, "weekly_change": 3.2},
-                {"code": "601318.SH", "name": "中国平安", "score": 88.2, "weekly_change": 2.5},
-                {"code": "600036.SH", "name": "招商银行", "score": 87.5, "weekly_change": 1.8},
-                {"code": "688981.SH", "name": "中芯国际", "score": 86.8, "weekly_change": 12.5},
-                {"code": "002415.SZ", "name": "海康威视", "score": 85.5, "weekly_change": 4.2},
-                {"code": "000568.SH", "name": "泸州老窖", "score": 84.2, "weekly_change": 2.8},
-                {"code": "600900.SH", "name": "长江电力", "score": 83.5, "weekly_change": 1.5},
-            ],
-            "sector_performance": [
-                {"name": "新能源", "weekly_change": 8.5, "inflow": "+125亿"},
-                {"name": "半导体", "weekly_change": 6.2, "inflow": "+98亿"},
-                {"name": "人工智能", "weekly_change": 12.8, "inflow": "+156亿"},
-                {"name": "医药生物", "weekly_change": -2.5, "inflow": "-45亿"},
-                {"name": "银行", "weekly_change": 1.2, "inflow": "+32亿"},
-            ],
-            "risk_analysis": {
-                "level": "中等",
-                "volatility": "15.2%",
-                "max_drawdown": "-8.5%"
-            }
+            "summary": data.get("summary", ""),
+            "highlights": data.get("highlights", []),
+            "market_summary": data.get("market_summary", {}),
+            "top_stocks": data.get("stock_scores", [])[:10],
+            "sector_performance": data.get("sector_performance", []),
+            "risk_analysis": data.get("risk_metrics", {}),
         }
         
         pdf_path = pdf_generator.generate_weekly_report(pdf_data)
@@ -240,10 +202,10 @@ async def delete_report(request: Request, report_id: str):
 async def generate_backtest_report(request: Request, backtest_data: dict):
     try:
         pdf_data = {
-            "strategy_name": backtest_data.get("strategy_name", "策略回测"),
+            "strategy_name": backtest_data.get("strategy_name", ""),
             "start_date": backtest_data.get("start_date", ""),
             "end_date": backtest_data.get("end_date", ""),
-            "summary": backtest_data.get("summary", "策略回测完成，整体表现良好"),
+            "summary": backtest_data.get("summary", ""),
             "metrics": backtest_data.get("metrics", {}),
             "portfolio": backtest_data.get("portfolio", {}),
             "performance": backtest_data.get("performance", {}),

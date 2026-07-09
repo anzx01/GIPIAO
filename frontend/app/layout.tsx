@@ -5,7 +5,7 @@ import { AuthProvider } from "@/lib/auth-context";
 
 export const metadata: Metadata = {
   title: "AI Quant Research Hub | AI量化研究平台",
-  description: "AI驱动的股票量化分析、策略评分、回测模拟及可视化报告平台",
+  description: "AI驱动的股票量化分析、策略评分、回测分析及可视化报告平台",
   keywords: ["量化投资", "股票分析", "AI投资", "量化研究", "回测系统"],
 };
 

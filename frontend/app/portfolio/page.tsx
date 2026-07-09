@@ -8,14 +8,10 @@ import api from "@/lib/api";
 import {
   Briefcase,
   TrendingUp,
-  TrendingDown,
   PieChart,
   BarChart3,
   Plus,
   ArrowUpRight,
-  ArrowDownRight,
-  DollarSign,
-  Percent,
   Edit,
   Trash2,
   Save,
@@ -29,10 +25,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart as RechartsPieChart,
-  Pie,
-  Cell,
-  Legend,
 } from "recharts";
 
 interface Portfolio {
@@ -45,16 +37,26 @@ interface Portfolio {
 
 interface Position {
   code: string;
-  name: string;
   weight: number;
-  return: number;
-  value: number;
-  shares: number;
+  price?: number | null;
+}
+
+interface PortfolioPerformance {
+  total_return?: number;
+  annual_return?: number;
+  daily_returns?: Array<{ date: string; return: number }>;
+  portfolio_values?: Array<{ date: string; value: number }>;
+  sharpe_ratio?: number;
+  max_drawdown?: number;
+  volatility?: number;
+  win_rate?: number;
 }
 
 export default function PortfolioPage() {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [selectedPortfolio, setSelectedPortfolio] = useState<Portfolio | null>(null);
+  const [portfolioDetail, setPortfolioDetail] = useState<{ positions?: Position[] } | null>(null);
+  const [portfolioPerformance, setPortfolioPerformance] = useState<PortfolioPerformance | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -69,6 +71,15 @@ export default function PortfolioPage() {
     fetchPortfolios();
   }, []);
 
+  useEffect(() => {
+    if (!selectedPortfolio?.id) {
+      setPortfolioDetail(null);
+      setPortfolioPerformance(null);
+      return;
+    }
+    fetchPortfolioData(selectedPortfolio.id);
+  }, [selectedPortfolio?.id]);
+
   const fetchPortfolios = async () => {
     try {
       const res = await api.getPortfolioList();
@@ -82,6 +93,21 @@ export default function PortfolioPage() {
       console.error('Failed to fetch portfolios:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPortfolioData = async (portfolioId: string) => {
+    try {
+      const [detailRes, performanceRes] = await Promise.all([
+        api.getPortfolioDetail(portfolioId).catch(() => null),
+        api.getPortfolioPerformance(portfolioId).catch(() => null),
+      ]);
+      setPortfolioDetail(detailRes?.data ?? null);
+      setPortfolioPerformance(performanceRes?.data ?? null);
+    } catch (error) {
+      console.error('Failed to fetch portfolio data:', error);
+      setPortfolioDetail(null);
+      setPortfolioPerformance(null);
     }
   };
 
@@ -180,61 +206,28 @@ export default function PortfolioPage() {
     setEditStocks({ ...editStocks, [code]: Math.max(0, Math.min(100, weight)) });
   };
 
-  const getStockName = (code: string) => {
-    const names: Record<string, string> = {
-      "600519.SH": "贵州茅台",
-      "000858.SH": "五粮液",
-      "601318.SH": "中国平安",
-      "600036.SH": "招商银行",
-      "600900.SH": "长江电力",
-      "300750.SZ": "宁德时代",
-      "002594.SZ": "比亚迪",
-    };
-    return names[code] || code;
-  };
-
   const portfolio = selectedPortfolio;
-  const totalValue = 1250000;
-  const totalReturn = 12.8;
-  const dailyReturn = 1.25;
   const positionsCount = Object.keys(portfolio?.stocks || {}).length;
-
-  const performanceData = [
-    { month: "8月", value: 1000000, benchmark: 1000000 },
-    { month: "9月", value: 1050000, benchmark: 1020000 },
-    { month: "10月", value: 1030000, benchmark: 1010000 },
-    { month: "11月", value: 1100000, benchmark: 1040000 },
-    { month: "12月", value: 1150000, benchmark: 1060000 },
-    { month: "1月", value: 1200000, benchmark: 1080000 },
-    { month: "2月", value: 1250000, benchmark: 1100000 },
-  ];
-
-  const holdings: Position[] = portfolio
-    ? Object.entries(portfolio.stocks).map(([code, weight]) => ({
-        code: code.replace('.SH', '').replace('.SZ', ''),
-        name: getStockName(code),
-        weight,
-        return: Math.round((Math.random() - 0.3) * 30 * 100) / 100,
-        value: (totalValue * weight) / 100,
-        shares: Math.round((totalValue * weight) / 100 / 100),
-      }))
-    : [];
-
-  const sectorAllocation = [
-    { name: "白酒", value: 43, color: "#19989A" },
-    { name: "金融", value: 27, color: "#6A4C93" },
-    { name: "新能源", value: 15, color: "#2E7D32" },
-    { name: "电力", value: 10, color: "#F57C00" },
-    { name: "现金", value: 5, color: "#78909C" },
-  ];
-
+  const holdings: Position[] = portfolioDetail?.positions || (
+    portfolio
+      ? Object.entries(portfolio.stocks).map(([code, weight]) => ({ code, weight }))
+      : []
+  );
+  const performanceData = portfolioPerformance?.portfolio_values || [];
+  const dailyReturns = portfolioPerformance?.daily_returns || [];
+  const dailyReturn = dailyReturns.length > 0 ? dailyReturns[dailyReturns.length - 1].return : undefined;
+  const formatPercent = (value?: number, signed = false) => {
+    if (typeof value !== "number") return "暂无";
+    const prefix = signed && value > 0 ? "+" : "";
+    return `${prefix}${value}%`;
+  };
+  const formatNumber = (value?: number) => (typeof value === "number" ? String(value) : "暂无");
   const riskMetrics = [
-    { name: "年化收益率", value: "18.5%", color: "text-green-500" },
-    { name: "夏普比率", value: "1.85", color: "text-blue-500" },
-    { name: "最大回撤", value: "-8.2%", color: "text-red-500" },
-    { name: "波动率", value: "15.3%", color: "text-yellow-500" },
-    { name: "Alpha", value: "5.2%", color: "text-purple-500" },
-    { name: "Beta", value: "0.85", color: "text-cyan-500" },
+    { name: "年化收益率", value: formatPercent(portfolioPerformance?.annual_return, true), color: "text-green-500" },
+    { name: "夏普比率", value: formatNumber(portfolioPerformance?.sharpe_ratio), color: "text-blue-500" },
+    { name: "最大回撤", value: formatPercent(portfolioPerformance?.max_drawdown), color: "text-red-500" },
+    { name: "波动率", value: formatPercent(portfolioPerformance?.volatility), color: "text-yellow-500" },
+    { name: "胜率", value: formatPercent(portfolioPerformance?.win_rate), color: "text-cyan-500" },
   ];
 
   if (loading) {
@@ -386,9 +379,7 @@ export default function PortfolioPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">总资产</p>
-                  <p className="text-2xl font-bold mt-1">
-                    ¥{(totalValue / 10000).toFixed(1)}万
-                  </p>
+                  <p className="text-2xl font-bold mt-1 text-muted-foreground">暂无</p>
                 </div>
                 <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
                   <Briefcase className="h-6 w-6 text-primary" />
@@ -403,7 +394,7 @@ export default function PortfolioPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">总收益率</p>
                   <p className="text-2xl font-bold mt-1 text-green-500">
-                    +{totalReturn}%
+                    {formatPercent(portfolioPerformance?.total_return, true)}
                   </p>
                 </div>
                 <div className="h-12 w-12 rounded-xl bg-green-500/10 flex items-center justify-center">
@@ -419,7 +410,7 @@ export default function PortfolioPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">日收益率</p>
                   <p className="text-2xl font-bold mt-1 text-green-500">
-                    +{dailyReturn}%
+                    {formatPercent(typeof dailyReturn === "number" ? dailyReturn * 100 : undefined, true)}
                   </p>
                 </div>
                 <div className="h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
@@ -463,34 +454,31 @@ export default function PortfolioPage() {
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={performanceData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="month" stroke="#888" />
-                    <YAxis stroke="#888" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'rgba(0,0,0,0.8)',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#4CAF50"
-                      fill="rgba(76, 175, 80, 0.2)"
-                      name="组合收益"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="benchmark"
-                      stroke="#8884d8"
-                      fill="rgba(136, 132, 216, 0.1)"
-                      name="基准收益"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                {performanceData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={performanceData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis dataKey="date" stroke="#888" />
+                      <YAxis stroke="#888" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'rgba(0,0,0,0.8)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: '8px'
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#4CAF50"
+                        fill="rgba(76, 175, 80, 0.2)"
+                        name="组合权益"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-muted-foreground">暂无收益走势</div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -505,13 +493,12 @@ export default function PortfolioPage() {
                   {holdings.map((position) => (
                     <div key={position.code} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                       <div>
-                        <p className="font-medium">{position.name}</p>
-                        <p className="text-sm text-muted-foreground">{position.code}</p>
+                        <p className="font-medium">{position.code}</p>
+                        <p className="text-sm text-muted-foreground">权重 {position.weight}%</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium">{position.weight}%</p>
-                        <p className={`text-sm ${position.return >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {position.return >= 0 ? '+' : ''}{position.return}%
+                        <p className="font-medium">
+                          {typeof position.price === "number" ? `¥${position.price.toFixed(2)}` : "暂无价格"}
                         </p>
                       </div>
                     </div>
@@ -526,25 +513,7 @@ export default function PortfolioPage() {
               </CardHeader>
               <CardContent>
                 <div className="h-[250px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsPieChart>
-                      <Pie
-                        data={sectorAllocation}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {sectorAllocation.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </RechartsPieChart>
-                  </ResponsiveContainer>
+                  <div className="flex h-full items-center justify-center text-muted-foreground">暂无行业分布数据</div>
                 </div>
               </CardContent>
             </Card>

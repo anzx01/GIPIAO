@@ -124,7 +124,7 @@ class QuantEngine:
                     'summary': {}
                 }
 
-            self.logger.info("步骤6: 风控模拟")
+            self.logger.info("步骤6: 风控分析")
             top_stocks = self.scorer.get_top_stocks(scores, 5)
             
             if top_stocks:
@@ -268,9 +268,7 @@ class QuantEngine:
         
         stock_list = pool.get('stocks', [])
         
-        indices = pool.get('indices', [])
-        
-        return stock_list if stock_list else ['600519.SH', '000858.SH', '601318.SH']
+        return stock_list
     
     def setup_scheduler(self):
         """设置调度任务"""

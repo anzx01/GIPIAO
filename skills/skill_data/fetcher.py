@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
 from typing import List, Dict
 import loguru
@@ -9,7 +8,7 @@ from .sources import BaostockSession
 
 
 class StockDataFetcher:
-    """股票数据抓取器：优先 akshare，失败的代码统一走一次 baostock 兜底，最终降级模拟数据"""
+    """股票数据抓取器：优先 akshare，失败的代码统一走一次 baostock 兜底"""
 
     def __init__(self, config: dict = None):
         self.config = config or {}
@@ -45,8 +44,7 @@ class StockDataFetcher:
 
         for code in stock_codes:
             if code not in result:
-                self.logger.warning(f"无法获取 {code} 数据，使用模拟数据")
-                result[code] = self._generate_mock_data(code, start_date, end_date)
+                self.logger.warning(f"无法获取 {code} 真实行情数据")
 
         return result
 
@@ -65,35 +63,6 @@ class StockDataFetcher:
         except Exception as e:
             self.logger.error(f"baostock 兜底获取行情数据失败: {e}")
         return result
-
-    def _generate_mock_data(self, code: str, start_date: str, end_date: str) -> pd.DataFrame:
-        """生成模拟数据用于测试"""
-        start = datetime.strptime(start_date, "%Y%m%d")
-        end = datetime.strptime(end_date, "%Y%m%d")
-
-        dates = pd.date_range(start, end, freq='B')
-        n = len(dates)
-
-        np.random.seed(hash(code) % 2**32)
-        base_price = 100 + np.random.rand() * 100
-
-        returns = np.random.randn(n) * 0.02
-        prices = base_price * np.exp(np.cumsum(returns))
-
-        df = pd.DataFrame({
-            'date': dates,
-            'code': code,
-            'open': prices * (1 + np.random.randn(n) * 0.01),
-            'high': prices * (1 + np.abs(np.random.randn(n)) * 0.02),
-            'low': prices * (1 - np.abs(np.random.randn(n)) * 0.02),
-            'close': prices,
-            'volume': np.random.randint(1000000, 50000000, n),
-            'amount': prices * np.random.randint(1000000, 50000000, n),
-            'pct_change': returns * 100,
-            'turnover': np.random.uniform(0.5, 5, n)
-        })
-
-        return df
 
     def fetch_financial_data(self, stock_codes: List[str]) -> Dict[str, dict]:
         """获取财务数据"""
@@ -117,7 +86,7 @@ class StockDataFetcher:
 
         for code in stock_codes:
             if code not in result:
-                result[code] = self._generate_mock_financial(code)
+                self.logger.warning(f"无法获取 {code} 真实财务数据")
 
         return result
 
@@ -135,28 +104,19 @@ class StockDataFetcher:
             self.logger.error(f"baostock 兜底获取财务数据失败: {e}")
         return result
 
-    def _generate_mock_financial(self, code: str) -> dict:
-        """生成模拟财务数据"""
-        np.random.seed(hash(code) % 2**32)
-
-        return {
-            'code': code,
-            'revenue': np.random.uniform(10, 500) * 1e8,
-            'profit': np.random.uniform(1, 50) * 1e8,
-            'roe': np.random.uniform(5, 30),
-            'pe': np.random.uniform(5, 50),
-            'pb': np.random.uniform(0.5, 10),
-            'ps': np.random.uniform(0.5, 20),
-            'market_cap': np.random.uniform(100, 5000) * 1e8,
-            'source': 'mock'
-        }
-
     def calculate_technical_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         """计算技术指标"""
         if df is None or df.empty:
             return df
 
         df = df.copy()
+
+        if 'high' not in df.columns:
+            df['high'] = df['close']
+        if 'low' not in df.columns:
+            df['low'] = df['close']
+        if 'volume' not in df.columns:
+            df['volume'] = 0
 
         # 均线
         df['ma5'] = df['close'].rolling(window=5).mean()
@@ -229,12 +189,4 @@ class StockDataFetcher:
             return akshare_source.fetch_market_summary()
         except Exception as e:
             self.logger.error(f"获取市场概览失败: {e}")
-            return {
-                'total_stocks': 5000,
-                'up_count': 2000,
-                'down_count': 2500,
-                'flat_count': 500,
-                'total_volume': 1e12,
-                'total_amount': 1e13,
-                'timestamp': datetime.now()
-            }
+            raise

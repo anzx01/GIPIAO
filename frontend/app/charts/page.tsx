@@ -23,79 +23,12 @@ import {
 export default function ChartsPage() {
   const [activeTab, setActiveTab] = useState<"line" | "bar" | "pie" | "scatter" | "candlestick" | "radar" | "heatmap">("line");
 
-  const lineData = [
-    { date: "2024-01", value: 100 },
-    { date: "2024-02", value: 120 },
-    { date: "2024-03", value: 110 },
-    { date: "2024-04", value: 140 },
-    { date: "2024-05", value: 130 },
-    { date: "2024-06", value: 160 },
-    { date: "2024-07", value: 150 },
-    { date: "2024-08", value: 180 },
-    { date: "2024-09", value: 170 },
-    { date: "2024-10", value: 200 },
-    { date: "2024-11", value: 190 },
-    { date: "2024-12", value: 220 },
-  ];
-
-  const barData = [
-    { name: "贵州茅台", value: 95.5 },
-    { name: "宁德时代", value: 92.3 },
-    { name: "比亚迪", value: 90.8 },
-    { name: "五粮液", value: 89.5 },
-    { name: "中国平安", value: 88.2 },
-    { name: "招商银行", value: 87.5 },
-    { name: "中芯国际", value: 86.8 },
-    { name: "海康威视", value: 85.5 },
-  ];
-
-  const pieData = [
-    { name: "白酒", value: 43 },
-    { name: "金融", value: 27 },
-    { name: "新能源", value: 15 },
-    { name: "电力", value: 10 },
-    { name: "现金", value: 5 },
-  ];
-
-  const scatterData = [
-    { x: 10, y: 8.04 },
-    { x: 8, y: 6.95 },
-    { x: 13, y: 7.58 },
-    { x: 9, y: 8.81 },
-    { x: 11, y: 8.33 },
-    { x: 14, y: 9.96 },
-    { x: 6, y: 7.24 },
-    { x: 4, y: 4.26 },
-    { x: 12, y: 10.84 },
-    { x: 7, y: 4.82 },
-    { x: 5, y: 5.68 },
-  ];
-
-  const candlestickData = [
-    { date: "2024-01-01", open: 100, close: 105, low: 98, high: 108 },
-    { date: "2024-01-02", open: 105, close: 103, low: 100, high: 107 },
-    { date: "2024-01-03", open: 103, close: 108, low: 102, high: 110 },
-    { date: "2024-01-04", open: 108, close: 106, low: 104, high: 109 },
-    { date: "2024-01-05", open: 106, close: 112, low: 105, high: 113 },
-    { date: "2024-01-08", open: 112, close: 110, low: 108, high: 114 },
-    { date: "2024-01-09", open: 110, close: 115, low: 109, high: 116 },
-    { date: "2024-01-10", open: 115, close: 118, low: 113, high: 120 },
-  ];
-
-  const radarData = [
-    {
-      name: "贵州茅台",
-      values: [95, 90, 88, 92, 85, 87],
-    },
-    {
-      name: "宁德时代",
-      values: [88, 95, 92, 85, 90, 88],
-    },
-    {
-      name: "比亚迪",
-      values: [82, 88, 95, 90, 85, 82],
-    },
-  ];
+  const lineData: Array<{ date: string; value: number }> = [];
+  const barData: Array<{ name: string; value: number }> = [];
+  const pieData: Array<{ name: string; value: number }> = [];
+  const scatterData: Array<{ x: number; y: number }> = [];
+  const candlestickData: Array<{ date: string; open: number; close: number; low: number; high: number }> = [];
+  const radarData: Array<{ name: string; values: number[] }> = [];
 
   const radarIndicators = [
     { name: "盈利能力", max: 100 },
@@ -106,17 +39,7 @@ export default function ChartsPage() {
     { name: "技术面", max: 100 },
   ];
 
-  const heatmapData = [
-    [0, 0, 5],
-    [0, 1, 3],
-    [0, 2, 8],
-    [1, 0, 2],
-    [1, 1, 6],
-    [1, 2, 4],
-    [2, 0, 7],
-    [2, 1, 9],
-    [2, 2, 1],
-  ];
+  const heatmapData: number[][] = [];
 
   const heatmapXAxis = ["周一", "周二", "周三"];
   const heatmapYAxis = ["上午", "下午", "晚上"];

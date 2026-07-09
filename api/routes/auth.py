@@ -22,6 +22,7 @@ from api.auth import (
 from core.database import get_db
 from core.models import User as UserModel
 from api.validators import validate_username, validate_email, validate_password
+from pymongo.errors import PyMongoError
 
 
 router = APIRouter(prefix="/auth", tags=["认证"])
@@ -41,7 +42,14 @@ class UserResponse(BaseModel):
 
 @router.post("/login", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(form_data.username, form_data.password)
+    try:
+        user = authenticate_user(form_data.username, form_data.password)
+    except PyMongoError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database unavailable"
+        )
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -63,9 +71,15 @@ async def register(user_data: UserCreate):
     email = validate_email(user_data.email)
     password = validate_password(user_data.password)
 
-    db = get_db()
+    try:
+        db = get_db()
+        existing_user = db.users.find_one({"username": username})
+    except PyMongoError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database unavailable"
+        )
 
-    existing_user = db.users.find_one({"username": username})
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

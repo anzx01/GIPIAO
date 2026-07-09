@@ -1,11 +1,12 @@
 """
-组合管理API路由
+Portfolio management API routes.
 """
 
-from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Request, Body
-from pydantic import BaseModel
 from datetime import datetime
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, Request, status
+from pydantic import BaseModel
 
 
 router = APIRouter()
@@ -13,150 +14,187 @@ router = APIRouter()
 
 class PortfolioCreate(BaseModel):
     name: str
-    stocks: dict
+    stocks: dict[str, float]
 
 
 class PortfolioUpdate(BaseModel):
-    stocks: dict
+    stocks: dict[str, float]
+
+
+def _storage(request: Request):
+    return request.app.state.engine.storage
+
+
+def _portfolio_id(portfolio: dict[str, Any]) -> str | None:
+    raw_id = portfolio.get("id") or portfolio.get("_id") or portfolio.get("name")
+    return str(raw_id) if raw_id is not None else None
+
+
+def _serialize_portfolio(portfolio: dict[str, Any]) -> dict[str, Any]:
+    item = dict(portfolio)
+    item.pop("_id", None)
+    item["id"] = _portfolio_id(portfolio)
+    for field in ("created_at", "updated_at", "saved_at"):
+        if hasattr(item.get(field), "isoformat"):
+            item[field] = item[field].isoformat()
+    return item
+
+
+def _load_portfolios(request: Request) -> list[dict[str, Any]]:
+    storage = _storage(request)
+    if not hasattr(storage, "load_portfolios"):
+        return []
+
+    portfolios = storage.load_portfolios()
+    return [_serialize_portfolio(item) for item in portfolios]
+
+
+def _find_portfolio(request: Request, portfolio_id: str) -> dict[str, Any] | None:
+    for portfolio in _load_portfolios(request):
+        if portfolio.get("id") == portfolio_id or portfolio.get("name") == portfolio_id:
+            return portfolio
+    return None
 
 
 @router.get("/list")
 async def get_portfolio_list(request: Request):
-    try:
-        portfolios = [
-            {
-                "id": "1",
-                "name": "默认组合",
-                "stocks": {
-                    "600519.SH": 0.3,
-                    "000858.SH": 0.3,
-                    "601318.SH": 0.2,
-                    "600036.SH": 0.2
-                },
-                "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat()
-            }
-        ]
-        
-        return {
-            "code": 200,
-            "data": {
-                "items": portfolios,
-                "total": len(portfolios)
-            }
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    portfolios = _load_portfolios(request)
+    return {
+        "code": 200,
+        "data": {
+            "items": portfolios,
+            "total": len(portfolios),
+        },
+    }
 
 
 @router.get("/{portfolio_id}")
 async def get_portfolio_detail(request: Request, portfolio_id: str):
-    engine = request.app.state.engine
-    
-    portfolios = {
-        "1": {
-            "id": "1",
-            "name": "默认组合",
-            "stocks": {
-                "600519.SH": 0.3,
-                "000858.SH": 0.3,
-                "601318.SH": 0.2,
-                "600036.SH": 0.2
-            }
-        }
-    }
-    
-    portfolio = portfolios.get(portfolio_id)
+    portfolio = _find_portfolio(request, portfolio_id)
     if not portfolio:
-        raise HTTPException(status_code=404, detail="组合不存在")
-    
-    stock_list = list(portfolio["stocks"].keys())
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    engine = request.app.state.engine
+    stock_list = list((portfolio.get("stocks") or {}).keys())
     price_data = engine.fetcher.fetch_price_data(stock_list)
-    
+
     current_prices = {}
     for code in stock_list:
-        if code in price_data and not price_data[code].empty:
-            current_prices[code] = float(price_data[code].iloc[-1]["close"])
-    
-    total_value = sum(
-        weight * current_prices.get(code, 0)
-        for code, weight in portfolio["stocks"].items()
-    )
-    
+        df = price_data.get(code)
+        if df is not None and not df.empty and "close" in df.columns:
+            current_prices[code] = float(df.iloc[-1]["close"])
+
+    positions = []
+    for code, weight in (portfolio.get("stocks") or {}).items():
+        price = current_prices.get(code)
+        positions.append(
+            {
+                "code": code,
+                "weight": weight,
+                "price": price,
+            }
+        )
+
     return {
         "code": 200,
         "data": {
             **portfolio,
             "current_prices": current_prices,
-            "total_value": total_value,
-            "positions": [
-                {
-                    "code": code,
-                    "weight": weight,
-                    "price": current_prices.get(code, 0),
-                    "value": weight * total_value
-                }
-                for code, weight in portfolio["stocks"].items()
-            ]
-        }
+            "positions": positions,
+        },
     }
 
 
 @router.post("/")
 async def create_portfolio(request: Request, portfolio: PortfolioCreate):
+    storage = _storage(request)
+    if not hasattr(storage, "save_portfolio"):
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Portfolio storage is not configured",
+        )
+
+    payload = {
+        "id": portfolio.name,
+        "name": portfolio.name,
+        "stocks": portfolio.stocks,
+        "created_at": datetime.now(),
+        "updated_at": datetime.now(),
+    }
+    storage.save_portfolio(payload)
+
     return {
         "code": 200,
-        "message": "组合创建成功",
-        "data": {
-            "id": "new_portfolio_id",
-            "name": portfolio.name,
-            "stocks": portfolio.stocks,
-            "created_at": datetime.now().isoformat()
-        }
+        "message": "Portfolio created",
+        "data": _serialize_portfolio(payload),
     }
 
 
 @router.put("/{portfolio_id}")
-async def update_portfolio(
-    request: Request,
-    portfolio_id: str,
-    portfolio: PortfolioUpdate
-):
+async def update_portfolio(request: Request, portfolio_id: str, portfolio: PortfolioUpdate):
+    storage = _storage(request)
+    existing = _find_portfolio(request, portfolio_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    if not hasattr(storage, "save_portfolio"):
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Portfolio storage is not configured",
+        )
+
+    payload = {
+        **existing,
+        "stocks": portfolio.stocks,
+        "updated_at": datetime.now(),
+    }
+    storage.save_portfolio(payload)
+
     return {
         "code": 200,
-        "message": "组合更新成功",
-        "data": {
-            "id": portfolio_id,
-            "stocks": portfolio.stocks,
-            "updated_at": datetime.now().isoformat()
-        }
+        "message": "Portfolio updated",
+        "data": _serialize_portfolio(payload),
     }
 
 
 @router.delete("/{portfolio_id}")
 async def delete_portfolio(request: Request, portfolio_id: str):
-    return {
-        "code": 200,
-        "message": "组合删除成功"
-    }
+    storage = _storage(request)
+    if not hasattr(storage, "portfolios"):
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Portfolio storage is not configured",
+        )
+
+    result = storage.portfolios.delete_one({"$or": [{"id": portfolio_id}, {"name": portfolio_id}]})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    return {"code": 200, "message": "Portfolio deleted"}
 
 
 @router.get("/{portfolio_id}/performance")
-async def get_portfolio_performance(
-    request: Request,
-    portfolio_id: str,
-    days: int = 30
-):
+async def get_portfolio_performance(request: Request, portfolio_id: str, days: int = 30):
+    portfolio = _find_portfolio(request, portfolio_id)
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    stocks = portfolio.get("stocks") or {}
+    if not stocks:
+        raise HTTPException(status_code=400, detail="Portfolio has no stocks")
+
+    try:
+        result = request.app.state.engine.backtest_portfolio(stocks)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Real portfolio performance unavailable: {exc}",
+        ) from exc
+
     return {
         "code": 200,
         "data": {
             "portfolio_id": portfolio_id,
             "days": days,
-            "total_return": 5.23,
-            "annual_return": 12.5,
-            "daily_returns": [
-                {"date": "2024-01-01", "return": 0.5},
-                {"date": "2024-01-02", "return": -0.2},
-            ]
-        }
+            **result,
+        },
     }

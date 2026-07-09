@@ -36,7 +36,7 @@ export default function StocksPage() {
   const searchParams = useSearchParams();
   const urlCode = searchParams.get('code');
 
-  const [searchCode, setSearchCode] = useState(urlCode || "600519.SH");
+  const [searchCode, setSearchCode] = useState(urlCode || "");
   const [stockDetail, setStockDetail] = useState<StockDetail>({
     code: "",
     name: "",
@@ -60,8 +60,6 @@ export default function StocksPage() {
     if (urlCode) {
       setSearchCode(urlCode);
       fetchStockData(urlCode);
-    } else if (searchCode) {
-      fetchStockData(searchCode);
     }
   }, [urlCode]);
 

@@ -1,4 +1,3 @@
-import random
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import pandas as pd
@@ -93,38 +92,6 @@ class NewsFetcher:
                 
         return max(-1.0, min(1.0, score))
     
-    def _generate_mock_news(self, code: str, days: int) -> List[dict]:
-        """生成模拟新闻数据"""
-        stock_name = code.split('.')[0]
-        
-        titles = [
-            f"{stock_name} 发布最新季度财报，营收同比增长",
-            f"分析师上调 {stock_name} 目标价",
-            f"{stock_name} 获得重要战略合作机会",
-            f"机构投资者大举买入 {stock_name} 股票",
-            f"{stock_name} 宣布新产品研发计划",
-            f"市场看好 {stock_name} 未来发展前景",
-            f"{stock_name} 股价突破关键技术位",
-        ]
-        
-        news_list = []
-        base_date = datetime.now()
-        
-        for i in range(min(days * 3, 15)):
-            date = base_date - timedelta(hours=i * 8 + random.randint(0, 12))
-            
-            news_list.append({
-                'title': random.choice(titles) + f" {random.randint(5, 25)}%",
-                'url': f"https://example.com/news/{code}/{i}",
-                'datetime': date.strftime("%Y-%m-%d %H:%M:%S"),
-                'source': random.choice(['证券日报', '第一财经', '华尔街日报', '彭博社']),
-                'code': code,
-                'sentiment': random.choice(['positive', 'neutral', 'negative']),
-                'sentiment_score': random.uniform(-1, 1)
-            })
-        
-        return news_list
-    
     def analyze_sentiment(self, news_list: List[dict]) -> dict:
         """分析新闻情绪"""
         if not news_list:
@@ -183,23 +150,3 @@ class NewsFetcher:
             self.logger.warning(f"获取市场新闻失败: {e}")
             return []
     
-    def _generate_mock_market_news(self) -> List[dict]:
-        """生成模拟市场新闻"""
-        titles = [
-            "A股市场今日震荡上行",
-            "央行发布最新货币政策",
-            "沪深两市成交额突破万亿元",
-            "外资持续流入A股市场",
-            "科创板再迎新股上市",
-            "券商看好后市行情",
-        ]
-        
-        return [
-            {
-                'title': random.choice(titles),
-                'url': f"https://example.com/market/{i}",
-                'datetime': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'source': random.choice(['证券时报', '上海证券报', '中国证券报'])
-            }
-            for i in range(10)
-        ]

@@ -43,16 +43,17 @@ interface BacktestConfig {
 }
 
 interface BacktestResult {
-  totalReturn: number;
-  annualReturn: number;
-  sharpeRatio: number;
-  maxDrawdown: number;
-  winRate: number;
-  volatility: number;
-  totalTrades: number;
-  avgWin: number;
-  avgLoss: number;
-  portfolioValues?: Array<{ date: string; value: number }>;
+  total_return?: number;
+  annual_return?: number;
+  sharpe_ratio?: number;
+  max_drawdown?: number;
+  win_rate?: number;
+  volatility?: number;
+  total_trades?: number;
+  avg_win?: number;
+  avg_loss?: number;
+  trades?: Array<{ date: string; type: string; code: string; price?: number; reason?: string }>;
+  portfolio_values?: Array<{ date: string; value: number; return?: number }>;
 }
 
 interface StockPosition {
@@ -69,77 +70,53 @@ export default function BacktestPage() {
     slippage: 0.001,
   });
 
-  const [stocks, setStocks] = useState<StockPosition[]>([
-    { code: "600519.SH", weight: 30 },
-    { code: "000858.SH", weight: 30 },
-    { code: "601318.SH", weight: 20 },
-    { code: "600036.SH", weight: 20 },
-  ]);
+  const [stocks, setStocks] = useState<StockPosition[]>([]);
 
   const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
 
-  const equityCurve = backtestResult?.portfolioValues || [
-    { date: "2023-01", value: 1000000 },
-    { date: "2023-02", value: 1050000 },
-    { date: "2023-03", value: 1080000 },
-    { date: "2023-04", value: 1120000 },
-    { date: "2023-05", value: 1180000 },
-    { date: "2023-06", value: 1150000 },
-    { date: "2023-07", value: 1200000 },
-    { date: "2023-08", value: 1250000 },
-    { date: "2023-09", value: 1220000 },
-    { date: "2023-10", value: 1280000 },
-    { date: "2023-11", value: 1320000 },
-    { date: "2023-12", value: 1350000 },
-    { date: "2024-01", value: 1420000 },
-    { date: "2024-02", value: 1485000 },
-  ];
-
-  const drawdownData = [
-    { date: "2023-01", drawdown: 0 },
-    { date: "2023-02", drawdown: -2.5 },
-    { date: "2023-03", drawdown: -1.8 },
-    { date: "2023-04", drawdown: -3.2 },
-    { date: "2023-05", drawdown: -5.5 },
-    { date: "2023-06", drawdown: -12.8 },
-    { date: "2023-07", drawdown: -8.5 },
-    { date: "2023-08", drawdown: -6.2 },
-    { date: "2023-09", drawdown: -9.8 },
-    { date: "2023-10", drawdown: -5.2 },
-    { date: "2023-11", drawdown: -3.5 },
-    { date: "2023-12", drawdown: -2.8 },
-    { date: "2024-01", drawdown: -1.5 },
-    { date: "2024-02", drawdown: 0 },
-  ];
-
-  const monthlyReturns = [
-    { month: "1月", return: 5.2 },
-    { month: "2月", return: 3.8 },
-    { month: "3月", return: -2.5 },
-    { month: "4月", return: 4.2 },
-    { month: "5月", return: 6.5 },
-    { month: "6月", return: -8.2 },
-    { month: "7月", return: 4.8 },
-    { month: "8月", return: 3.2 },
-    { month: "9月", return: -5.5 },
-    { month: "10月", return: 8.2 },
-    { month: "11月", return: 3.5 },
-    { month: "12月", return: 2.8 },
-  ];
-
-  const trades = [
-    { date: "2024-02-16", type: "买入", code: "600519", price: 1685.5, reason: "MA金叉" },
-    { date: "2024-02-15", type: "卖出", code: "601318", price: 45.2, reason: "止盈" },
-    { date: "2024-02-14", type: "买入", code: "000858", price: 158.5, reason: "突破买入" },
-    { date: "2024-02-13", type: "卖出", code: "600036", price: 35.8, reason: "止损" },
-    { date: "2024-02-12", type: "买入", code: "300750", price: 185.2, reason: "趋势跟随" },
-  ];
+  const equityCurve = backtestResult?.portfolio_values || [];
+  let equityPeak = 0;
+  const drawdownData = equityCurve.map((point) => {
+    equityPeak = Math.max(equityPeak, point.value);
+    const peak = equityPeak;
+    const drawdown = peak > 0 ? ((point.value - peak) / peak) * 100 : 0;
+    return { date: point.date, drawdown: Number(drawdown.toFixed(2)) };
+  });
+  const monthlyReturns = equityCurve
+    .filter((point) => typeof point.return === "number")
+    .map((point) => ({
+      month: point.date,
+      return: Number(((point.return || 0) * 100).toFixed(2)),
+    }));
+  const trades = backtestResult?.trades || [];
+  const formatPercent = (value?: number, signed = false) => {
+    if (typeof value !== "number") return "暂无";
+    const prefix = signed && value > 0 ? "+" : "";
+    return `${prefix}${value}%`;
+  };
+  const formatNumber = (value?: number) => (typeof value === "number" ? String(value) : "暂无");
+  const profitLossRatio =
+    typeof backtestResult?.avg_win === "number" && typeof backtestResult?.avg_loss === "number" && backtestResult.avg_loss !== 0
+      ? (backtestResult.avg_win / Math.abs(backtestResult.avg_loss)).toFixed(2)
+      : "暂无";
 
   const handleRunBacktest = async () => {
+    if (stocks.length === 0) {
+      alert("请先添加至少一只股票");
+      return;
+    }
+    if (Math.abs(getTotalWeight() - 100) > 0.1) {
+      alert("持仓权重总和必须为100%");
+      return;
+    }
+
     const portfolio = stocks.reduce((acc, stock) => {
-      acc[stock.code] = stock.weight / 100;
+      const code = stock.code.trim().toUpperCase();
+      if (code) {
+        acc[code] = stock.weight / 100;
+      }
       return acc;
     }, {} as Record<string, number>);
 
@@ -328,7 +305,7 @@ export default function BacktestPage() {
               <div>
                 <p className="text-sm text-muted-foreground">总收益率</p>
                 <p className="text-2xl font-display font-bold mt-1 text-success">
-                  +{backtestResult?.totalReturn ?? 0}%
+                  {formatPercent(backtestResult?.total_return, true)}
                 </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center">
@@ -344,7 +321,7 @@ export default function BacktestPage() {
               <div>
                 <p className="text-sm text-muted-foreground">年化收益率</p>
                 <p className="text-2xl font-display font-bold mt-1 text-success">
-                  +{backtestResult?.annualReturn ?? 0}%
+                  {formatPercent(backtestResult?.annual_return, true)}
                 </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -359,7 +336,7 @@ export default function BacktestPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">夏普比率</p>
-                <p className="text-2xl font-display font-bold mt-1">{backtestResult?.sharpeRatio ?? 0}</p>
+                <p className="text-2xl font-display font-bold mt-1">{formatNumber(backtestResult?.sharpe_ratio)}</p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-chart-2/10 flex items-center justify-center">
                 <FlaskConical className="h-6 w-6 text-chart-2" />
@@ -374,7 +351,7 @@ export default function BacktestPage() {
               <div>
                 <p className="text-sm text-muted-foreground">最大回撤</p>
                 <p className="text-2xl font-display font-bold mt-1 text-danger">
-                  {backtestResult?.maxDrawdown ?? 0}%
+                  {formatPercent(backtestResult?.max_drawdown)}
                 </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-danger/10 flex items-center justify-center">
@@ -394,7 +371,7 @@ export default function BacktestPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">胜率</p>
-                <p className="text-lg font-display font-bold">{backtestResult?.winRate ?? 62.5}%</p>
+                <p className="text-lg font-display font-bold">{formatPercent(backtestResult?.win_rate)}</p>
               </div>
             </div>
           </CardContent>
@@ -408,7 +385,7 @@ export default function BacktestPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">波动率</p>
-                <p className="text-lg font-display font-bold">{backtestResult?.volatility ?? 15.2}%</p>
+                <p className="text-lg font-display font-bold">{formatPercent(backtestResult?.volatility)}</p>
               </div>
             </div>
           </CardContent>
@@ -422,7 +399,7 @@ export default function BacktestPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">交易次数</p>
-                <p className="text-lg font-display font-bold">{backtestResult?.totalTrades ?? 156}</p>
+                <p className="text-lg font-display font-bold">{formatNumber(backtestResult?.total_trades)}</p>
               </div>
             </div>
           </CardContent>
@@ -436,7 +413,7 @@ export default function BacktestPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">平均盈利</p>
-                <p className="text-lg font-display font-bold text-success">+{backtestResult?.avgWin ?? 3.2}%</p>
+                <p className="text-lg font-display font-bold text-success">{formatPercent(backtestResult?.avg_win, true)}</p>
               </div>
             </div>
           </CardContent>
@@ -450,7 +427,7 @@ export default function BacktestPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">平均亏损</p>
-                <p className="text-lg font-display font-bold text-danger">{backtestResult?.avgLoss ?? -1.8}%</p>
+                <p className="text-lg font-display font-bold text-danger">{formatPercent(backtestResult?.avg_loss)}</p>
               </div>
             </div>
           </CardContent>
@@ -464,7 +441,7 @@ export default function BacktestPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">盈亏比</p>
-                <p className="text-lg font-display font-bold">{((backtestResult?.avgWin ?? 3.2) / Math.abs(backtestResult?.avgLoss ?? 1.8)).toFixed(2)}</p>
+                <p className="text-lg font-display font-bold">{profitLossRatio}</p>
               </div>
             </div>
           </CardContent>
@@ -482,35 +459,39 @@ export default function BacktestPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={equityCurve}>
-                  <defs>
-                    <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
-                  <XAxis dataKey="date" stroke="hsl(215, 20%, 65%)" fontSize={12} />
-                  <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} tickFormatter={(v) => `${(v/10000).toFixed(0)}万`} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(222, 47%, 8%)',
-                      border: '1px solid hsl(217, 33%, 17%)',
-                      borderRadius: '12px',
-                    }}
-                    formatter={(value: number) => [`¥${(value/10000).toFixed(1)}万`, '权益']}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke="hsl(199, 89%, 48%)"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorEquity)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              {equityCurve.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={equityCurve}>
+                    <defs>
+                      <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
+                    <XAxis dataKey="date" stroke="hsl(215, 20%, 65%)" fontSize={12} />
+                    <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} tickFormatter={(v) => `${(v/10000).toFixed(0)}万`} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(222, 47%, 8%)',
+                        border: '1px solid hsl(217, 33%, 17%)',
+                        borderRadius: '12px',
+                      }}
+                      formatter={(value: number) => [`¥${(value/10000).toFixed(1)}万`, '权益']}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="hsl(199, 89%, 48%)"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorEquity)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-muted-foreground">暂无回测曲线</div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -521,35 +502,39 @@ export default function BacktestPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={drawdownData}>
-                  <defs>
-                    <linearGradient id="colorDrawdown" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0} />
-                      <stop offset="95%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.3} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
-                  <XAxis dataKey="date" stroke="hsl(215, 20%, 65%)" fontSize={12} />
-                  <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(222, 47%, 8%)',
-                      border: '1px solid hsl(217, 33%, 17%)',
-                      borderRadius: '12px',
-                    }}
-                    formatter={(value: number) => [`${value}%`, '回撤']}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="drawdown"
-                    stroke="hsl(0, 84%, 60%)"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorDrawdown)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              {drawdownData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={drawdownData}>
+                    <defs>
+                      <linearGradient id="colorDrawdown" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0} />
+                        <stop offset="95%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.3} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
+                    <XAxis dataKey="date" stroke="hsl(215, 20%, 65%)" fontSize={12} />
+                    <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} tickFormatter={(v) => `${v}%`} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(222, 47%, 8%)',
+                        border: '1px solid hsl(217, 33%, 17%)',
+                        borderRadius: '12px',
+                      }}
+                      formatter={(value: number) => [`${value}%`, '回撤']}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="drawdown"
+                      stroke="hsl(0, 84%, 60%)"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorDrawdown)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-muted-foreground">暂无回撤数据</div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -562,26 +547,30 @@ export default function BacktestPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyReturns}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
-                  <XAxis dataKey="month" stroke="hsl(215, 20%, 65%)" fontSize={12} />
-                  <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(222, 47%, 8%)',
-                      border: '1px solid hsl(217, 33%, 17%)',
-                      borderRadius: '12px',
-                    }}
-                    formatter={(value: number) => [`${value}%`, '收益率']}
-                  />
-                  <Bar dataKey="return" radius={[4, 4, 0, 0]}>
-                    {monthlyReturns.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.return >= 0 ? 'hsl(160, 84%, 39%)' : 'hsl(0, 84%, 60%)'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {monthlyReturns.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyReturns}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217, 33%, 17%)" />
+                    <XAxis dataKey="month" stroke="hsl(215, 20%, 65%)" fontSize={12} />
+                    <YAxis stroke="hsl(215, 20%, 65%)" fontSize={12} tickFormatter={(v) => `${v}%`} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(222, 47%, 8%)',
+                        border: '1px solid hsl(217, 33%, 17%)',
+                        borderRadius: '12px',
+                      }}
+                      formatter={(value: number) => [`${value}%`, '收益率']}
+                    />
+                    <Bar dataKey="return" radius={[4, 4, 0, 0]}>
+                      {monthlyReturns.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.return >= 0 ? 'hsl(160, 84%, 39%)' : 'hsl(0, 84%, 60%)'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-muted-foreground">暂无月度收益</div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -595,23 +584,29 @@ export default function BacktestPage() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-3">
-            {trades.map((trade, index) => (
-              <div key={index} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
-                <div className="flex items-center gap-3">
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    trade.type === '买入' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
-                  }`}>
-                    {trade.type}
-                  </span>
-                  <span className="font-mono text-sm">{trade.code}</span>
-                  <span className="text-muted-foreground">@¥{trade.price}</span>
+            {trades.length > 0 ? (
+              trades.map((trade, index) => (
+                <div key={index} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      trade.type === '买入' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
+                    }`}>
+                      {trade.type}
+                    </span>
+                    <span className="font-mono text-sm">{trade.code}</span>
+                    {typeof trade.price === "number" && (
+                      <span className="text-muted-foreground">@¥{trade.price}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground">{trade.reason || ""}</span>
+                    <span className="text-xs text-muted-foreground">{trade.date}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-muted-foreground">{trade.reason}</span>
-                  <span className="text-xs text-muted-foreground">{trade.date}</span>
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="flex h-[180px] items-center justify-center text-muted-foreground">暂无交易记录</div>
+            )}
           </CardContent>
         </Card>
       </div>

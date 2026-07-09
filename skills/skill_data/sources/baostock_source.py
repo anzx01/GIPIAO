@@ -9,6 +9,8 @@ from typing import Optional
 import pandas as pd
 import loguru
 
+from ..text_utils import repair_mojibake_text
+
 logger = loguru.logger
 
 
@@ -73,7 +75,7 @@ class BaostockSession:
         return df.sort_values('date')
 
     def fetch_financial(self, code: str) -> Optional[dict]:
-        """获取财务指标：仅 PE/PB 取自最新交易日估值字段，ROE/营收等 baostock 无稳定接口，留空由 mock 兜底"""
+        """获取财务指标：仅 PE/PB 取自最新交易日估值字段，ROE/营收等 baostock 无稳定接口，留空"""
         bs_code = _to_baostock_code(code)
         if bs_code is None:
             return None
@@ -114,5 +116,5 @@ class BaostockSession:
                 continue
             market, num = bs_code.split('.')
             suffix = 'SH' if market == 'sh' else 'SZ'
-            mapping[f"{num}.{suffix}"] = code_name
+            mapping[f"{num}.{suffix}"] = repair_mojibake_text(code_name)
         return mapping

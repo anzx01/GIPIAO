@@ -1,4 +1,5 @@
 import pytest
+import os
 from datetime import datetime
 import pandas as pd
 import numpy as np
@@ -154,28 +155,30 @@ class TestDataFetcher:
         assert 'rsi' in result.columns
         assert 'macd' in result.columns
     
-    def test_generate_mock_data(self):
+    def test_fetch_price_data_returns_empty_without_real_source(self, monkeypatch):
         from skills.skill_data.fetcher import StockDataFetcher
+        from skills.skill_data import fetcher as fetcher_module
         
         fetcher = StockDataFetcher()
+        monkeypatch.setattr(fetcher_module.akshare_source, "fetch_price", lambda *args, **kwargs: None)
+        monkeypatch.setattr(fetcher, "_fetch_price_via_baostock", lambda *args, **kwargs: {})
         
-        df = fetcher._generate_mock_data('600519.SH', '20230101', '20231231')
+        data = fetcher.fetch_price_data(['600519.SH'], '20230101', '20231231')
         
-        assert not df.empty
-        assert 'close' in df.columns
-        assert 'volume' in df.columns
+        assert data == {}
     
-    def test_generate_mock_financial(self):
+    def test_fetch_financial_data_returns_empty_without_real_source(self, monkeypatch):
         from skills.skill_data.fetcher import StockDataFetcher
+        from skills.skill_data import fetcher as fetcher_module
         
         fetcher = StockDataFetcher()
+        monkeypatch.setattr(fetcher_module.akshare_source, "fetch_spot_map", lambda: {})
+        monkeypatch.setattr(fetcher_module.akshare_source, "fetch_financial", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("offline")))
+        monkeypatch.setattr(fetcher, "_fetch_financial_via_baostock", lambda *args, **kwargs: {})
         
-        data = fetcher._generate_mock_financial('600519.SH')
+        data = fetcher.fetch_financial_data(['600519.SH'])
         
-        assert 'pe' in data
-        assert 'pb' in data
-        assert 'roe' in data
-        assert data['pe'] > 0
+        assert data == {}
 
 
 class TestReportGenerator:
